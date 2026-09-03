@@ -10,11 +10,21 @@ export function ChatView() {
 
   const last = messages[messages.length - 1];
   const lastLen = (last?.content.length ?? 0) + (last?.reasoning?.length ?? 0);
+  // Id of the most recent user message: changes exactly when the user sends something.
+  const lastUserId = [...messages].reverse().find((m) => m.role === 'user')?.id;
 
   useEffect(() => {
     pinned.current = true;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [activeChatId]);
+
+  // Sending a message always re-pins and jumps to the bottom, even if the user had scrolled up.
+  useEffect(() => {
+    if (!lastUserId) return;
+    pinned.current = true;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lastUserId]);
 
   useEffect(() => {
     const el = scrollRef.current;
