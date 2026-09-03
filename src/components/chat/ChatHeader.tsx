@@ -26,7 +26,7 @@ export function ChatHeader({ sidebarOpen, onToggleSidebar }: Props) {
         </Button>
       )}
       <span className="text-muted-foreground pointer-events-none truncate text-sm select-none">
-        {title ?? 'New chat'}
+        {title ?? ''}
       </span>
     </header>
   );

@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useChat } from '@/store/chatStore';
 import { MessageList } from './MessageList';
+import { useGreeting } from '@/store/greetingStore';
 
 export function ChatView() {
   const messages = useChat((s) => s.messages);
   const activeChatId = useChat((s) => s.activeChatId);
+  const greeting = useGreeting((s) => s.current);
+  const nextGreeting = useGreeting((s) => s.next);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
 
@@ -37,14 +40,17 @@ export function ChatView() {
     pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  if (messages.length === 0) {
+  // Each new empty state shows the next greeting in today's rotation.
+  const empty = messages.length === 0;
+  useEffect(() => {
+    if (empty && activeChatId === null) void nextGreeting();
+  }, [empty, activeChatId, nextGreeting]);
+
+  if (empty) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">What are we testing today?</h1>
-        <p className="text-muted-foreground max-w-md text-sm">
-          Pick a model and thinking level below, then send a message. Switch models mid-chat and hit
-          regenerate to compare answers.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{greeting.heading}</h1>
+        <p className="text-muted-foreground max-w-md text-sm">{greeting.subtext}</p>
       </div>
     );
   }

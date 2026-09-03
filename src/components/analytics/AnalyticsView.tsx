@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { Button } from '@/components/ui/button';
-import { shortName } from '@/components/composer/ModelPicker';
+import { shortName } from '@/lib/modelName';
 import {
   DEFAULT_RANGE,
   SYSTEM_KEY,

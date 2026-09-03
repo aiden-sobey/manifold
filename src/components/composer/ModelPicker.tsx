@@ -17,6 +17,9 @@ import { useChat } from '@/store/chatStore';
 import { useModels } from '@/store/modelStore';
 import { useSettings } from '@/store/settingsStore';
 import { ProviderIcon, providerOf } from './ProviderIcon';
+import { shortName } from '@/lib/modelName';
+
+export { shortName };
 
 export function formatPrice(perToken?: string): string {
   if (!perToken) return '';
@@ -24,11 +27,6 @@ export function formatPrice(perToken?: string): string {
   if (!Number.isFinite(n)) return '';
   if (n === 0) return 'free';
   return `$${n < 1 ? n.toFixed(2) : n.toFixed(n < 10 ? 1 : 0)}`;
-}
-
-/** "Anthropic: Claude Sonnet 5" -> "Claude Sonnet 5". Names without a producer prefix are unchanged. */
-export function shortName(name: string): string {
-  return name.replace(/^[^:]{1,40}:\s+/, '');
 }
 
 function formatContext(n?: number): string {

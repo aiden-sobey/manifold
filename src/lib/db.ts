@@ -252,7 +252,7 @@ export async function spendByDayAndModel(sinceMs: number | null): Promise<DailyM
 }
 
 export async function insertSystemUsage(entry: {
-  purpose: 'title';
+  purpose: 'title' | 'greeting';
   modelId: string;
   usage: Record<string, unknown>;
 }): Promise<void> {
