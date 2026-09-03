@@ -8,7 +8,7 @@ A lightweight desktop chat client for testing different AI models through
 - Thinking level control, driven by each model's advertised reasoning support
 - Chat history with auto-generated titles, full-text search
 - Attachments: drop, paste, or attach images, PDFs, and text/code files.
-- Analytics: all-time and recent spend, stacked spend/tokens by model. Spend comes from OpenRouter's charged cost on each reply. Deleting a chat removes its replies and therefore its spend from analytics.
+- Analytics: all-time and recent spend, stacked spend/tokens by model.
 - API key stored in the macOS keychain
 
 ## Requirements

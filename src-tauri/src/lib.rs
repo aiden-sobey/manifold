@@ -22,6 +22,12 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/003_attachments.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "usage ledger independent of chats",
+            sql: include_str!("../migrations/004_usage_ledger.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

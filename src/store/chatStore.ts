@@ -403,6 +403,17 @@ async function runCompletion(
 
   // Persist whatever arrived, even on error/abort, unless there is literally nothing.
   if (content || reasoning) await db.insertMessage(final);
+  // Spend is recorded in the ledger regardless, so deleting the chat later never erases it.
+  if (usage) {
+    void db.insertUsage({
+      id: final.id,
+      source: 'chat',
+      modelId,
+      chatId,
+      usage,
+      createdAt: final.createdAt,
+    });
+  }
   const persisted = Boolean(content || reasoning);
 
   set((s) => ({

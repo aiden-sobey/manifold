@@ -306,12 +306,8 @@ export interface DailyModelRow {
   missing_completion_tokens: number | null;
 }
 
-const USAGE_UNION = `
-  SELECT 'chat' AS source, model_id, usage_json, created_at
-  FROM messages WHERE role = 'assistant' AND usage_json IS NOT NULL
-  UNION ALL
-  SELECT 'system' AS source, model_id, usage_json, created_at
-  FROM system_usage`;
+// Analytics read from the ledger, not from messages, so deleting a chat never erases spend.
+const USAGE_UNION = `SELECT source, model_id, usage_json, created_at FROM usage_ledger`;
 
 const SPEND_SELECT = `
   SELECT strftime('%Y-%m-%dT%H', created_at / 1000, 'unixepoch', 'localtime') AS period,
@@ -342,17 +338,41 @@ export async function spendByDayAndModel(sinceMs: number | null): Promise<DailyM
   );
 }
 
-export async function insertSystemUsage(entry: {
+export interface UsageEntry {
+  /** Message id for chat replies so re-recording is idempotent; any unique id for system calls. */
+  id: string;
+  source: UsageSource;
+  purpose?: 'title' | 'greeting';
+  modelId: string;
+  chatId?: string;
+  usage: Record<string, unknown>;
+  createdAt?: number;
+}
+
+export async function insertUsage(entry: UsageEntry): Promise<void> {
+  await (
+    await db()
+  ).execute(
+    `INSERT OR IGNORE INTO usage_ledger (id, source, purpose, model_id, chat_id, usage_json, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      entry.id,
+      entry.source,
+      entry.purpose ?? null,
+      entry.modelId,
+      entry.chatId ?? null,
+      JSON.stringify(entry.usage),
+      entry.createdAt ?? Date.now(),
+    ],
+  );
+}
+
+export function insertSystemUsage(entry: {
   purpose: 'title' | 'greeting';
   modelId: string;
   usage: Record<string, unknown>;
 }): Promise<void> {
-  await (
-    await db()
-  ).execute(
-    `INSERT INTO system_usage (id, purpose, model_id, usage_json, created_at) VALUES ($1, $2, $3, $4, $5)`,
-    [crypto.randomUUID(), entry.purpose, entry.modelId, JSON.stringify(entry.usage), Date.now()],
-  );
+  return insertUsage({ id: crypto.randomUUID(), source: 'system', ...entry });
 }
 
 export interface SpendTotalsRow {
