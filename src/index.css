@@ -295,3 +295,29 @@ body {
 .animate-blink {
   animation: blink 1s ease-in-out infinite;
 }
+
+/* Chart series colours (validated categorical palette; dark steps are selected, not flipped) */
+:root {
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-6: #008300;
+  --viz-other: #9a9a94;
+  --viz-system: #4a3aa7;
+  --viz-grid: color-mix(in oklab, var(--border) 80%, transparent);
+}
+.dark {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-6: #008300;
+  --viz-other: #6f6f6a;
+  --viz-system: #9085e9;
+}
+.recharts-tooltip-cursor {
+  fill: color-mix(in oklab, var(--foreground) 6%, transparent);
+}

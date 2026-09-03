@@ -26,7 +26,7 @@ export const DEFAULT_FAVOURITES = [
 const DEFAULTS: Settings = {
   defaultModelId: 'anthropic/claude-sonnet-4.5',
   defaultThinking: 'medium',
-  titleModelId: 'google/gemini-2.5-flash-lite',
+  titleModelId: 'openai/gpt-oss-120b',
   autoTitle: true,
   sendKey: 'enter',
   favouriteModelIds: DEFAULT_FAVOURITES,
@@ -53,6 +53,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
     store = await load('settings.json', { autoSave: true, defaults: {} });
     const saved = (await store.get<Partial<Settings>>('settings')) ?? {};
     const merged: Settings = { ...DEFAULTS, ...saved };
+    // Previous default title model; move users who never changed it to the new default.
+    if (saved.titleModelId === 'google/gemini-2.5-flash-lite') {
+      merged.titleModelId = DEFAULTS.titleModelId;
+      await store.set('settings', merged);
+    }
     if (!saved.favouritesSeeded) {
       merged.favouriteModelIds = [
         ...DEFAULT_FAVOURITES,

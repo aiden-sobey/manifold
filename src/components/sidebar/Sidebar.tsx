@@ -1,4 +1,4 @@
-import { PanelLeftClose, Plus, Settings } from 'lucide-react';
+import { BarChart3, PanelLeftClose, Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -7,6 +7,7 @@ import { ChatListItem } from './ChatListItem';
 import { SearchInput } from './SearchInput';
 import { cn } from '@/lib/utils';
 import { useWindowDrag } from '@/lib/useWindowDrag';
+import { useUi } from '@/store/uiStore';
 
 interface Props {
   open: boolean;
@@ -26,6 +27,8 @@ export function Sidebar({ open, onToggle, onOpenSettings }: Props) {
 
   const searching = searchQuery.trim().length > 0;
   const onDrag = useWindowDrag();
+  const view = useUi((s) => s.view);
+  const showAnalytics = useUi((s) => s.showAnalytics);
 
   return (
     <aside
@@ -106,7 +109,15 @@ export function Sidebar({ open, onToggle, onOpenSettings }: Props) {
         </div>
       </ScrollArea>
 
-      <div className="border-sidebar-border border-t p-2">
+      <div className="border-sidebar-border flex flex-col gap-0.5 border-t p-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('w-full justify-start gap-2', view === 'analytics' && 'bg-sidebar-accent')}
+          onClick={showAnalytics}
+        >
+          <BarChart3 className="size-4" /> Analytics
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -114,7 +125,6 @@ export function Sidebar({ open, onToggle, onOpenSettings }: Props) {
           onClick={onOpenSettings}
         >
           <Settings className="size-4" /> Settings
-          <span className="text-muted-foreground ml-auto text-xs">⌘,</span>
         </Button>
       </div>
     </aside>

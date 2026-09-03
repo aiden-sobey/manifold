@@ -1,6 +1,16 @@
 import { completeOnce } from './openrouter/client';
+import { insertSystemUsage } from './db';
 import type { OpenRouterModel } from './openrouter/types';
 import { toReasoningParam } from './openrouter/reasoning';
+import type { ReasoningParam } from './openrouter/types';
+
+/** Titles need no thinking: turn it off, or use the lowest effort when the model insists on reasoning. */
+function titleReasoning(model: OpenRouterModel | undefined): ReasoningParam | undefined {
+  const efforts = model?.reasoning?.supported_efforts ?? [];
+  if (model?.reasoning?.mandatory && efforts.includes('low'))
+    return { effort: 'low', exclude: true };
+  return toReasoningParam('off', model);
+}
 
 export function fallbackTitle(firstMessage: string): string {
   const oneLine = firstMessage.replace(/\s+/g, ' ').trim();
@@ -19,7 +29,7 @@ export async function generateTitle(
       model: titleModelId,
       max_tokens: 24,
       temperature: 0.3,
-      reasoning: toReasoningParam('off', titleModel),
+      reasoning: titleReasoning(titleModel),
       messages: [
         {
           role: 'system',
@@ -32,6 +42,13 @@ export async function generateTitle(
         },
       ],
     });
+    if (res.usage) {
+      insertSystemUsage({
+        purpose: 'title',
+        modelId: res.model || titleModelId,
+        usage: res.usage,
+      }).catch(() => undefined);
+    }
     const raw = res.choices[0]?.message.content?.trim() ?? '';
     const title = raw
       .split('\n')[0]

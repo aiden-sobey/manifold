@@ -6,6 +6,8 @@ import { ChatView } from '@/components/chat/ChatView';
 import { Composer } from '@/components/composer/Composer';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
+import { AnalyticsView } from '@/components/analytics/AnalyticsView';
+import { useUi } from '@/store/uiStore';
 import { pickDefaultModel, useChat } from '@/store/chatStore';
 import { useModels } from '@/store/modelStore';
 import { useSettings } from '@/store/settingsStore';
@@ -17,6 +19,7 @@ export default function App() {
   const [needsKey, setNeedsKey] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const loaded = useChat((s) => s.loaded);
+  const view = useUi((s) => s.view);
 
   useEffect(() => {
     void (async () => {
@@ -40,6 +43,10 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && useUi.getState().view === 'analytics') {
+        useUi.getState().showChat();
+        return;
+      }
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
       if (e.key === 'n') {
@@ -54,6 +61,9 @@ export default function App() {
       } else if (e.key === 'b') {
         e.preventDefault();
         setSidebarOpen((v) => !v);
+      } else if (e.key === 'a' && e.shiftKey) {
+        e.preventDefault();
+        useUi.getState().toggleAnalytics();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -69,8 +79,15 @@ export default function App() {
           onOpenSettings={() => setSettingsOpen(true)}
         />
         <main className="relative flex min-w-0 flex-1 flex-col">
-          <ChatHeader sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((v) => !v)} />
-          {loaded ? (
+          {view === 'analytics' ? (
+            <AnalyticsView />
+          ) : (
+            <ChatHeader
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((v) => !v)}
+            />
+          )}
+          {view === 'analytics' ? null : loaded ? (
             <>
               <ChatView />
               <Composer onOpenSettings={() => setSettingsOpen(true)} />

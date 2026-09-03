@@ -8,6 +8,7 @@ import { fallbackTitle, generateTitle } from '@/lib/titling';
 import type { Chat, FinishReason, Message, SearchResult, ThinkingLevel } from '@/types/domain';
 import { useModels } from './modelStore';
 import { useSettings } from './settingsStore';
+import { useUi } from './uiStore';
 
 const uuid = () => crypto.randomUUID();
 
@@ -78,6 +79,7 @@ export const useChat = create<ChatState>((set, get) => ({
 
   newChat: () => {
     if (get().streaming) get().stop();
+    useUi.getState().showChat();
     const { defaultThinking } = useSettings.getState().settings;
     set({
       activeChatId: null,
@@ -89,6 +91,7 @@ export const useChat = create<ChatState>((set, get) => ({
 
   openChat: async (id) => {
     if (get().streaming) get().stop();
+    useUi.getState().showChat();
     const chat = get().chats.find((c) => c.id === id);
     const messages = await db.listMessages(id);
     set({

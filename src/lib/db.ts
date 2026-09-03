@@ -196,3 +196,92 @@ export async function searchChats(query: string): Promise<SearchResult[]> {
   }
   return out;
 }
+
+// ---- analytics ----
+
+export type UsageSource = 'chat' | 'system';
+
+export interface DailyModelRow {
+  period: string; // YYYY-MM-DDTHH, local time (hour grain; coarser buckets are built in TS)
+  source: UsageSource;
+  model_id: string | null;
+  replies: number;
+  cost: number | null; // sum of charged cost over rows that have one
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  missing_cost: number; // rows in this group with no charged cost
+  missing_prompt_tokens: number | null; // tokens belonging to those rows, for estimation
+  missing_completion_tokens: number | null;
+}
+
+const USAGE_UNION = `
+  SELECT 'chat' AS source, model_id, usage_json, created_at
+  FROM messages WHERE role = 'assistant' AND usage_json IS NOT NULL
+  UNION ALL
+  SELECT 'system' AS source, model_id, usage_json, created_at
+  FROM system_usage`;
+
+const SPEND_SELECT = `
+  SELECT strftime('%Y-%m-%dT%H', created_at / 1000, 'unixepoch', 'localtime') AS period,
+         source,
+         model_id,
+         COUNT(*) AS replies,
+         SUM(json_extract(usage_json, '$.cost')) AS cost,
+         SUM(json_extract(usage_json, '$.prompt_tokens')) AS prompt_tokens,
+         SUM(json_extract(usage_json, '$.completion_tokens')) AS completion_tokens,
+         SUM(json_extract(usage_json, '$.total_tokens')) AS total_tokens,
+         SUM(CASE WHEN json_extract(usage_json, '$.cost') IS NULL THEN 1 ELSE 0 END) AS missing_cost,
+         SUM(CASE WHEN json_extract(usage_json, '$.cost') IS NULL
+                  THEN json_extract(usage_json, '$.prompt_tokens') END) AS missing_prompt_tokens,
+         SUM(CASE WHEN json_extract(usage_json, '$.cost') IS NULL
+                  THEN json_extract(usage_json, '$.completion_tokens') END) AS missing_completion_tokens
+  FROM (${USAGE_UNION}) u`;
+
+export async function spendByDayAndModel(sinceMs: number | null): Promise<DailyModelRow[]> {
+  const d = await db();
+  if (sinceMs === null) {
+    return d.select<DailyModelRow[]>(
+      `${SPEND_SELECT} GROUP BY period, source, model_id ORDER BY period ASC`,
+    );
+  }
+  return d.select<DailyModelRow[]>(
+    `${SPEND_SELECT} WHERE created_at >= $1 GROUP BY period, source, model_id ORDER BY period ASC`,
+    [sinceMs],
+  );
+}
+
+export async function insertSystemUsage(entry: {
+  purpose: 'title';
+  modelId: string;
+  usage: Record<string, unknown>;
+}): Promise<void> {
+  await (
+    await db()
+  ).execute(
+    `INSERT INTO system_usage (id, purpose, model_id, usage_json, created_at) VALUES ($1, $2, $3, $4, $5)`,
+    [crypto.randomUUID(), entry.purpose, entry.modelId, JSON.stringify(entry.usage), Date.now()],
+  );
+}
+
+export interface SpendTotalsRow {
+  replies: number;
+  cost: number | null;
+  total_tokens: number | null;
+  missing_cost: number;
+  first_at: number | null;
+}
+
+export async function spendTotals(): Promise<SpendTotalsRow> {
+  const rows = await (
+    await db()
+  ).select<SpendTotalsRow[]>(
+    `SELECT COUNT(*) AS replies,
+            SUM(json_extract(usage_json, '$.cost')) AS cost,
+            SUM(json_extract(usage_json, '$.total_tokens')) AS total_tokens,
+            SUM(CASE WHEN json_extract(usage_json, '$.cost') IS NULL THEN 1 ELSE 0 END) AS missing_cost,
+            MIN(created_at) AS first_at
+     FROM messages WHERE role = 'assistant' AND usage_json IS NOT NULL`,
+  );
+  return rows[0] ?? { replies: 0, cost: 0, total_tokens: 0, missing_cost: 0, first_at: null };
+}
