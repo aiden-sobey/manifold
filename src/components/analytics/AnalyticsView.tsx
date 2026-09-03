@@ -66,21 +66,19 @@ export function AnalyticsView() {
       <header
         data-tauri-drag-region
         onMouseDown={onDrag}
-        className="flex h-12 shrink-0 items-center gap-2 px-3"
+        className="grid h-12 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-3"
       >
-        <Button variant="ghost" size="sm" className="gap-1.5" onClick={showChat}>
-          <ArrowLeft className="size-4" /> Back
-        </Button>
+        <div className="flex">
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={showChat}>
+            <ArrowLeft className="size-4" /> Back
+          </Button>
+        </div>
         <span className="pointer-events-none text-sm font-medium select-none">Analytics</span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="ml-auto"
-          aria-label="Refresh"
-          onClick={data.refresh}
-        >
-          <RefreshCw className="size-4" />
-        </Button>
+        <div className="flex justify-end">
+          <Button variant="ghost" size="icon-sm" aria-label="Refresh" onClick={data.refresh}>
+            <RefreshCw className="size-4" />
+          </Button>
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

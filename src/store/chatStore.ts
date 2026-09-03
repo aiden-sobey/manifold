@@ -173,6 +173,14 @@ export const useChat = create<ChatState>((set, get) => ({
     await db.insertMessage(userMsg);
     set((s) => ({ messages: [...s.messages, userMsg] }));
 
+    // Title the chat from the first message right away, in parallel with the reply.
+    // Very short openers wait for the reply so the title has something to go on.
+    if (get().messages.length === 1 && content.length >= 20) {
+      void getApiKey().then((key) => {
+        if (key) void maybeAutoTitle(chatId, null, key, set, get);
+      });
+    }
+
     await runCompletion(chatId, modelId, thinking, set, get);
   },
 
@@ -342,7 +350,14 @@ async function runCompletion(
   if (finishReason !== 'error' && content) void maybeAutoTitle(chatId, content, apiKey, set, get);
 }
 
-async function maybeAutoTitle(chatId: string, reply: string, apiKey: string, set: Set, get: Get) {
+/** `reply` is null when titling early from the first user message alone. */
+async function maybeAutoTitle(
+  chatId: string,
+  reply: string | null,
+  apiKey: string,
+  set: Set,
+  get: Get,
+) {
   const { settings } = useSettings.getState();
   if (!settings.autoTitle) return;
   const chat = get().chats.find((c) => c.id === chatId);
@@ -354,7 +369,13 @@ async function maybeAutoTitle(chatId: string, reply: string, apiKey: string, set
 
   const firstUser = get().messages.find((m) => m.role === 'user')?.content ?? '';
   const titleModel = useModels.getState().byId.get(settings.titleModelId);
-  const title = await generateTitle(apiKey, settings.titleModelId, titleModel, firstUser, reply);
+  const title = await generateTitle(
+    apiKey,
+    settings.titleModelId,
+    titleModel,
+    firstUser,
+    reply ?? '',
+  );
   if (!title) return;
 
   const current = get().chats.find((c) => c.id === chatId);

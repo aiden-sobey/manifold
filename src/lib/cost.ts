@@ -51,6 +51,7 @@ export function formatCost(c: CostInfo): string {
   const prefix = c.exact ? '' : '~';
   const v = c.cost;
   if (v === 0) return `${prefix}$0`;
+  if (v < 0.00005) return `<$0.0001`;
   if (v >= 10) return `${prefix}$${v.toFixed(1)}`;
   if (v >= 0.01) return `${prefix}$${v.toFixed(2)}`;
   return `${prefix}$${v.toFixed(4)}`;

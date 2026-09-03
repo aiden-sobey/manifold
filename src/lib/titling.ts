@@ -38,7 +38,9 @@ export async function generateTitle(
         },
         {
           role: 'user',
-          content: `User: ${userMessage.slice(0, 1500)}\n\nAssistant: ${assistantReply.slice(0, 500)}`,
+          content: assistantReply
+            ? `User: ${userMessage.slice(0, 1500)}\n\nAssistant: ${assistantReply.slice(0, 500)}`
+            : `User: ${userMessage.slice(0, 1500)}`,
         },
       ],
     });

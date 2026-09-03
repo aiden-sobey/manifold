@@ -6,6 +6,8 @@ import { SYSTEM_KEY, type ModelSummary } from '@/lib/analytics';
 import { formatCost, formatTokens } from '@/lib/cost';
 import { cn } from '@/lib/utils';
 import { seriesColor } from './chartPalette';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useModels } from '@/store/modelStore';
 
 type SortKey = 'spend' | 'promptTokens' | 'completionTokens' | 'replies' | 'avgPerReply' | 'share';
 
@@ -192,16 +194,54 @@ export function ModelTable({ summaries, seriesIds, nameOf, onExport, loading }: 
   );
 }
 
-/** Token count with the list-price cost of those tokens beneath it. */
-function TokenCell({ tokens, cost }: { tokens: number; cost: number | null }) {
-  return (
-    <td className="px-3 py-2 text-right tabular-nums">
+/** "$3.00 / 1M input tokens" from OpenRouter's per-token price string. */
+function rateLabel(rate: string | undefined, kind: 'input' | 'output'): string | null {
+  const perToken = Number(rate);
+  if (!rate || !Number.isFinite(perToken)) return null;
+  const perM = perToken * 1_000_000;
+  if (perM === 0) return `Free ${kind} tokens`;
+  const digits = perM < 0.1 ? 3 : perM < 10 ? 2 : perM < 100 ? 1 : 0;
+  return `$${perM.toFixed(digits)} / 1M ${kind} tokens`;
+}
+
+/** Token count with the list-price cost of those tokens beneath it; hover for the model's rate. */
+function TokenCell({
+  tokens,
+  cost,
+  rate,
+  kind,
+}: {
+  tokens: number;
+  cost: number | null;
+  rate?: string;
+  kind?: 'input' | 'output';
+}) {
+  const label = kind ? rateLabel(rate, kind) : null;
+  const body = (
+    <div className="inline-block text-right">
       <div>{formatTokens(tokens)}</div>
       {cost !== null ? (
-        <div className="text-muted-foreground text-[11px]" title="Estimated from list price">
+        <div className="text-muted-foreground text-[11px]">
           {formatCost({ cost, exact: false })}
         </div>
       ) : null}
+    </div>
+  );
+  return (
+    <td className="px-3 py-2 text-right tabular-nums">
+      {label ? (
+        <Tooltip>
+          <TooltipTrigger render={<span className="cursor-default" />}>{body}</TooltipTrigger>
+          <TooltipContent side="top">
+            {label}
+            {cost !== null ? (
+              <span className="opacity-70"> · cost estimated from list price</span>
+            ) : null}
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        body
+      )}
     </td>
   );
 }
@@ -225,8 +265,14 @@ function Row({
   onToggle?: () => void;
   child?: boolean;
 }) {
+  const pricing = useModels((s) => s.byId.get(r.modelId)?.pricing);
   const nameCell = (
     <div className={cn('flex items-center gap-2', child && 'pl-7')}>
+      {color ? (
+        <span className="size-2 shrink-0 rounded-sm" style={{ background: color }} aria-hidden />
+      ) : null}
+      {icon}
+      <span className="truncate">{name}</span>
       {expandable ? (
         <ChevronRight
           className={cn(
@@ -235,11 +281,6 @@ function Row({
           )}
         />
       ) : null}
-      {color ? (
-        <span className="size-2 shrink-0 rounded-sm" style={{ background: color }} aria-hidden />
-      ) : null}
-      {icon}
-      <span className="truncate">{name}</span>
     </div>
   );
   return (
@@ -255,7 +296,7 @@ function Row({
             type="button"
             onClick={onToggle}
             aria-expanded={open}
-            className="hover:bg-muted/60 -mx-1 flex w-full items-center rounded px-1 text-left"
+            className="hover:bg-muted/60 -mx-1 flex items-center rounded px-1 text-left"
           >
             {nameCell}
           </button>
@@ -266,8 +307,18 @@ function Row({
       <td className="px-3 py-2 text-right tabular-nums">
         {formatCost({ cost: r.spend, exact: !r.approx })}
       </td>
-      <TokenCell tokens={r.promptTokens} cost={r.inputCostEst} />
-      <TokenCell tokens={r.completionTokens} cost={r.outputCostEst} />
+      <TokenCell
+        tokens={r.promptTokens}
+        cost={r.inputCostEst}
+        rate={pricing?.prompt}
+        kind="input"
+      />
+      <TokenCell
+        tokens={r.completionTokens}
+        cost={r.outputCostEst}
+        rate={pricing?.completion}
+        kind="output"
+      />
       <td className="px-3 py-2 text-right tabular-nums">{r.replies}</td>
       <td className="px-3 py-2 text-right tabular-nums">
         {formatCost({ cost: r.avgPerReply, exact: !r.approx })}

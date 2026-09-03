@@ -66,6 +66,7 @@ describe('formatCost', () => {
   it('scales precision and marks estimates', () => {
     expect(formatCost({ cost: 0, exact: true })).toBe('$0');
     expect(formatCost({ cost: 0.00042, exact: true })).toBe('$0.0004');
+    expect(formatCost({ cost: 0.00002, exact: false })).toBe('<$0.0001');
     expect(formatCost({ cost: 0.0099, exact: true })).toBe('$0.0099');
     expect(formatCost({ cost: 0.01, exact: true })).toBe('$0.01');
     expect(formatCost({ cost: 0.123, exact: false })).toBe('~$0.12');
