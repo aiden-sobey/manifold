@@ -1,0 +1,122 @@
+import { PanelLeftClose, Plus, Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useChat } from '@/store/chatStore';
+import { ChatListItem } from './ChatListItem';
+import { SearchInput } from './SearchInput';
+import { cn } from '@/lib/utils';
+import { useWindowDrag } from '@/lib/useWindowDrag';
+
+interface Props {
+  open: boolean;
+  onToggle: () => void;
+  onOpenSettings: () => void;
+}
+
+export function Sidebar({ open, onToggle, onOpenSettings }: Props) {
+  const chats = useChat((s) => s.chats);
+  const activeChatId = useChat((s) => s.activeChatId);
+  const searchQuery = useChat((s) => s.searchQuery);
+  const searchResults = useChat((s) => s.searchResults);
+  const newChat = useChat((s) => s.newChat);
+  const openChat = useChat((s) => s.openChat);
+  const deleteChat = useChat((s) => s.deleteChat);
+  const renameChat = useChat((s) => s.renameChat);
+
+  const searching = searchQuery.trim().length > 0;
+  const onDrag = useWindowDrag();
+
+  return (
+    <aside
+      className={cn(
+        'bg-sidebar text-sidebar-foreground border-sidebar-border flex h-full shrink-0 flex-col border-r transition-[width] duration-200',
+        open ? 'w-[280px]' : 'w-0 overflow-hidden border-r-0',
+      )}
+    >
+      {/* Title-bar strip: drag-to-move is a window affordance, not a control. */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div
+        data-tauri-drag-region
+        onMouseDown={onDrag}
+        className="flex h-12 items-center justify-end gap-1 px-2 pl-20"
+      >
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button variant="ghost" size="icon-sm" onClick={newChat} aria-label="New chat" />
+            }
+          >
+            <Plus className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>New chat ⌘N</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button variant="ghost" size="icon-sm" onClick={onToggle} aria-label="Hide sidebar" />
+            }
+          >
+            <PanelLeftClose className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Hide sidebar ⌘B</TooltipContent>
+        </Tooltip>
+      </div>
+
+      <div className="px-3 pb-2">
+        <SearchInput />
+      </div>
+
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex flex-col gap-0.5 px-2 pb-2">
+          {searching ? (
+            searchResults.length === 0 ? (
+              <p className="text-muted-foreground px-2 py-6 text-center text-sm">No matches</p>
+            ) : (
+              searchResults.map((r) => (
+                <ChatListItem
+                  key={r.chatId}
+                  id={r.chatId}
+                  title={r.title}
+                  snippet={r.snippet}
+                  active={r.chatId === activeChatId}
+                  onOpen={() => void openChat(r.chatId)}
+                  onDelete={() => void deleteChat(r.chatId)}
+                  onRename={(t) => void renameChat(r.chatId, t)}
+                />
+              ))
+            )
+          ) : chats.length === 0 ? (
+            <p className="text-muted-foreground px-2 py-6 text-center text-sm">
+              No chats yet. Start one below.
+            </p>
+          ) : (
+            chats.map((c) => (
+              <ChatListItem
+                key={c.id}
+                id={c.id}
+                title={c.title}
+                active={c.id === activeChatId}
+                onOpen={() => void openChat(c.id)}
+                onDelete={() => void deleteChat(c.id)}
+                onRename={(t) => void renameChat(c.id, t)}
+              />
+            ))
+          )}
+        </div>
+      </ScrollArea>
+
+      <div className="border-sidebar-border border-t p-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2"
+          onClick={onOpenSettings}
+        >
+          <Settings className="size-4" /> Settings
+          <span className="text-muted-foreground ml-auto text-xs">⌘,</span>
+        </Button>
+      </div>
+    </aside>
+  );
+}
