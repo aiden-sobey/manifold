@@ -35,7 +35,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:chat_harness.db", migrations())
+                .add_migrations("sqlite:manifold.db", migrations())
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![

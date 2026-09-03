@@ -1,22 +1,21 @@
-# Chat Harness
+# Manifold
 
 A lightweight desktop chat client for testing different AI models through
-[OpenRouter](https://openrouter.ai). Tauri v2 + React + TypeScript.
+[OpenRouter](https://openrouter.ai).
 
 - Streaming chat with markdown and syntax highlighting
-- Pick any OpenRouter model per chat; switch mid-chat and regenerate to compare
+- Pick any LLM model to chat with
 - Thinking level control, driven by each model's advertised reasoning support
-- Collapsible reasoning ("thought process") block
-- Chat history with auto-generated titles, full-text search (SQLite FTS5)
-- Attachments: drop, paste, or attach images, PDFs, and text/code files. Images go to vision models as base64, PDFs use OpenRouter's file parser (native where the model supports it, free text extraction otherwise, optional Mistral OCR), text files are inlined. Files are stored under the app data folder in `attachments/`.
-- Analytics: all-time and recent spend, stacked spend/tokens by model per day, week or month, per-model table, CSV export. Spend comes from OpenRouter's charged cost on each reply. Deleting a chat removes its replies and therefore its spend from analytics.
-- API key stored in the macOS keychain, history in a local SQLite database
+- Chat history with auto-generated titles, full-text search
+- Attachments: drop, paste, or attach images, PDFs, and text/code files.
+- Analytics: all-time and recent spend, stacked spend/tokens by model. Spend comes from OpenRouter's charged cost on each reply. Deleting a chat removes its replies and therefore its spend from analytics.
+- API key stored in the macOS keychain
 
 ## Requirements
 
 - Node 22+, pnpm 11+
 - Rust toolchain (`rustup`), Xcode command line tools
-- An OpenRouter API key: https://openrouter.ai/settings/keys
+- An [OpenRouter API key](https://openrouter.ai/settings/keys)
 
 ## Develop
 
@@ -34,7 +33,7 @@ because the debug binary's signature changes.
 ## Quality checks
 
 ```sh
-pnpm check        # typecheck + lint + format check + tests
+pnpm check        # typecheck + lint + format check
 pnpm test:watch
 ```
 
@@ -46,7 +45,7 @@ A pre-commit hook runs eslint/prettier on staged files.
 pnpm tauri build
 ```
 
-Produces `src-tauri/target/release/bundle/macos/Chat Harness.app` and a `.dmg`.
+Produces `src-tauri/target/release/bundle/macos/Manifold.app` and a `.dmg`.
 The app is unsigned, so on another Mac use right-click → Open the first time.
 
 ## Shortcuts
@@ -61,28 +60,6 @@ The app is unsigned, so on another Mac use right-click → Open the first time.
 
 ## Data locations
 
-- Database: `~/Library/Application Support/com.aiden.chat-harness/chat_harness.db`
+- Database: `~/Library/Application Support/com.aiden.manifold/manifold.db`
 - Settings and model cache: same directory, `settings.json` / `models-cache.json`
-- API key: macOS keychain, service `chat_harness`
-
-## Keychain prompts in development
-
-Debug binaries are ad-hoc signed, so macOS treats every rebuild as a new app and
-asks for keychain access again. `scripts/cargo-signed.sh` (wired in as Tauri's
-`build.runner`) signs the debug binary with a stable self-signed identity so you
-are asked once and can click "Always Allow". Create the identity once:
-
-```sh
-cd /tmp && openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 3650 -nodes \
-  -subj "/CN=Chat Harness Dev" -addext "keyUsage=critical,digitalSignature" \
-  -addext "extendedKeyUsage=critical,codeSigning" -addext "basicConstraints=critical,CA:false"
-openssl pkcs12 -export -inkey key.pem -in cert.pem -out dev.p12 -passout pass:dev -legacy
-security import dev.p12 -k ~/Library/Keychains/login.keychain-db -P dev -T /usr/bin/codesign
-security add-trusted-cert -r trustRoot -p codeSign -k ~/Library/Keychains/login.keychain-db cert.pem
-rm key.pem cert.pem dev.p12
-```
-
-Verify with `security find-identity -v -p codesigning`. To sign release bundles
-with it too, run `APPLE_SIGNING_IDENTITY="Chat Harness Dev" pnpm tauri build`. Without the identity the
-script falls back to the unsigned binary and just prints a note. Override the
-name with `CHAT_HARNESS_SIGN_IDENTITY`.
+- API key: macOS keychain, service `manifold`

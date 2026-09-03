@@ -1,6 +1,6 @@
 use keyring::Entry;
 
-const SERVICE: &str = "chat_harness";
+const SERVICE: &str = "manifold";
 const USER: &str = "openrouter";
 
 fn entry() -> Result<Entry, String> {

@@ -11,7 +11,7 @@ import type {
   Usage,
 } from '@/types/domain';
 
-const DB_URL = 'sqlite:chat_harness.db';
+const DB_URL = 'sqlite:manifold.db';
 let dbPromise: Promise<Database> | null = null;
 
 export function db(): Promise<Database> {

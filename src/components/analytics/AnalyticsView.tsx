@@ -49,7 +49,7 @@ export function AnalyticsView() {
     if (!data.summaries) return;
     try {
       const path = await save({
-        defaultPath: `chat-harness-spend-${range}.csv`,
+        defaultPath: `manifold-spend-${range}.csv`,
         filters: [{ name: 'CSV', extensions: ['csv'] }],
       });
       if (!path) return;

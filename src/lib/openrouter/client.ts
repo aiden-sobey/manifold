@@ -23,8 +23,8 @@ function headers(apiKey: string): HeadersInit {
   return {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
-    'HTTP-Referer': 'https://github.com/aiden/chat_harness',
-    'X-Title': 'Chat Harness',
+    'HTTP-Referer': 'https://github.com/aiden/manifold',
+    'X-Title': 'Manifold',
   };
 }
 

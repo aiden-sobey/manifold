@@ -7,7 +7,7 @@
 # Any other cargo subcommand is passed straight through.
 set -euo pipefail
 
-IDENTITY="${CHAT_HARNESS_SIGN_IDENTITY:-Chat Harness Dev}"
+IDENTITY="${MANIFOLD_SIGN_IDENTITY:-Manifold Dev}"
 
 if [[ "${1:-}" != "run" || "$(uname)" != "Darwin" ]]; then
   exec cargo "$@"
@@ -33,7 +33,7 @@ profile=debug
 for a in ${cargo_args[@]+"${cargo_args[@]}"}; do
   [[ "$a" == "--release" ]] && profile=release
 done
-bin="$target_dir/$profile/chat-harness"
+bin="$target_dir/$profile/manifold"
 
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\""; then
   codesign --force --sign "$IDENTITY" "$bin" 2>/dev/null \
