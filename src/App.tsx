@@ -9,6 +9,7 @@ import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { AnalyticsView } from '@/components/analytics/AnalyticsView';
 import { DropOverlay } from '@/components/chat/DropOverlay';
 import { useUi } from '@/store/uiStore';
+import { BALANCE_POLL_MS, useBalance } from '@/store/balanceStore';
 import { pickDefaultModel, useChat } from '@/store/chatStore';
 import { useModels } from '@/store/modelStore';
 import { useSettings } from '@/store/settingsStore';
@@ -36,10 +37,16 @@ export default function App() {
           setNeedsKey(true);
           setSettingsOpen(true);
         }
+        void useBalance.getState().refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : String(e));
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => void useBalance.getState().refresh(), BALANCE_POLL_MS);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {

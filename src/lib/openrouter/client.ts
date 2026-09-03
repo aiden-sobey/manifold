@@ -97,9 +97,37 @@ export async function listModels(): Promise<OpenRouterModel[]> {
   return json.data;
 }
 
-export async function checkApiKey(apiKey: string): Promise<{ label?: string; usage?: number }> {
-  const res = await fetch(`${OPENROUTER_BASE}/auth/key`, { headers: headers(apiKey) });
+export interface KeyInfo {
+  label?: string;
+  usage?: number;
+  limit?: number | null;
+  limit_remaining?: number | null;
+  is_free_tier?: boolean;
+}
+
+export async function checkApiKey(apiKey: string): Promise<KeyInfo> {
+  const res = await fetch(`${OPENROUTER_BASE}/key`, { headers: headers(apiKey) });
   if (!res.ok) throw new OpenRouterError(friendlyHttpError(res.status), res.status);
-  const json = (await res.json()) as { data?: { label?: string; usage?: number } };
+  const json = (await res.json()) as { data?: KeyInfo };
   return json.data ?? {};
+}
+
+export interface Credits {
+  total_credits: number;
+  total_usage: number;
+}
+
+/** Account balance. Requires a management key; a regular key gets 403. */
+export async function getCredits(managementKey: string): Promise<Credits> {
+  const res = await fetch(`${OPENROUTER_BASE}/credits`, { headers: headers(managementKey) });
+  if (res.status === 403) {
+    throw new OpenRouterError(
+      'This is not a management key. Create one at openrouter.ai/settings/keys.',
+      403,
+    );
+  }
+  if (!res.ok) throw new OpenRouterError(friendlyHttpError(res.status), res.status);
+  const json = (await res.json()) as { data?: Credits };
+  if (!json.data) throw new OpenRouterError('Unexpected credits response');
+  return json.data;
 }

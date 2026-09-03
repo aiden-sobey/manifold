@@ -8,6 +8,7 @@ import { SearchInput } from './SearchInput';
 import { cn } from '@/lib/utils';
 import { useWindowDrag } from '@/lib/useWindowDrag';
 import { useUi } from '@/store/uiStore';
+import { BalanceBadge } from './BalanceBadge';
 
 interface Props {
   open: boolean;
@@ -109,23 +110,26 @@ export function Sidebar({ open, onToggle, onOpenSettings }: Props) {
         </div>
       </ScrollArea>
 
-      <div className="border-sidebar-border flex flex-col gap-0.5 border-t p-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn('w-full justify-start gap-2', view === 'analytics' && 'bg-sidebar-accent')}
-          onClick={showAnalytics}
-        >
-          <BarChart3 className="size-4" /> Analytics
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2"
-          onClick={onOpenSettings}
-        >
-          <Settings className="size-4" /> Settings
-        </Button>
+      <div className="border-sidebar-border flex items-end justify-between gap-2 border-t p-2">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn('justify-start gap-2', view === 'analytics' && 'bg-sidebar-accent')}
+            onClick={showAnalytics}
+          >
+            <BarChart3 className="size-4" /> Analytics
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start gap-2"
+            onClick={onOpenSettings}
+          >
+            <Settings className="size-4" /> Settings
+          </Button>
+        </div>
+        <BalanceBadge onOpenSettings={onOpenSettings} />
       </div>
     </aside>
   );

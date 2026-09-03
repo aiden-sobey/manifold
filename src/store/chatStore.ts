@@ -24,6 +24,7 @@ import type {
 import { useModels } from './modelStore';
 import { useSettings } from './settingsStore';
 import { useUi } from './uiStore';
+import { useBalance } from './balanceStore';
 
 const uuid = () => crypto.randomUUID();
 
@@ -95,6 +96,7 @@ export const useChat = create<ChatState>((set, get) => ({
   newChat: () => {
     if (get().streaming) get().stop();
     useUi.getState().showChat();
+    void useBalance.getState().refresh();
     const { defaultThinking } = useSettings.getState().settings;
     set({
       activeChatId: null,

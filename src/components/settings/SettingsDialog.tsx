@@ -20,7 +20,9 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { getApiKey, setApiKey } from '@/lib/keychain';
+import { getApiKey, getManagementKey, setApiKey, setManagementKey } from '@/lib/keychain';
+import { getCredits } from '@/lib/openrouter/client';
+import { useBalance } from '@/store/balanceStore';
 import { checkApiKey } from '@/lib/openrouter/client';
 import { useModels } from '@/store/modelStore';
 import { useSettings, type SendKey } from '@/store/settingsStore';
@@ -40,6 +42,9 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
   const [hasKey, setHasKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [mgmtKey, setMgmtKey] = useState('');
+  const [hasMgmtKey, setHasMgmtKey] = useState(false);
+  const [mgmtBusy, setMgmtBusy] = useState(false);
   const settings = useSettings((s) => s.settings);
   const update = useSettings((s) => s.update);
   const byId = useModels((s) => s.byId);
@@ -50,6 +55,10 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
     void getApiKey().then((k) => {
       setHasKey(Boolean(k));
       setKey('');
+    });
+    void getManagementKey().then((k) => {
+      setHasMgmtKey(Boolean(k));
+      setMgmtKey('');
     });
   }, [open]);
 
@@ -84,6 +93,23 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setTesting(false);
+    }
+  };
+
+  const saveMgmtKey = async () => {
+    const k = mgmtKey.trim();
+    setMgmtBusy(true);
+    try {
+      if (k) await getCredits(k); // validates it is a management key before storing
+      await setManagementKey(k);
+      setHasMgmtKey(Boolean(k));
+      setMgmtKey('');
+      toast.success(k ? 'Management key saved' : 'Management key removed');
+      void useBalance.getState().refresh(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMgmtBusy(false);
     }
   };
 
@@ -154,6 +180,50 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
 
           {!required && (
             <>
+              <section className="flex flex-col gap-2">
+                <label htmlFor="mgmt-key" className="text-sm font-medium">
+                  Management key{' '}
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    id="mgmt-key"
+                    type="password"
+                    autoComplete="off"
+                    value={mgmtKey}
+                    onChange={(e) => setMgmtKey(e.target.value)}
+                    placeholder={hasMgmtKey ? '•••••••• (saved)' : 'sk-or-v1-… management key'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void saveMgmtKey();
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => void saveMgmtKey()}
+                    disabled={mgmtBusy || (!mgmtKey.trim() && !hasMgmtKey)}
+                  >
+                    {mgmtBusy ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : mgmtKey.trim() ? (
+                      'Save'
+                    ) : (
+                      'Remove'
+                    )}
+                  </Button>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  Shows your account credit balance in the sidebar.{' '}
+                  <button
+                    type="button"
+                    className="hover:text-foreground underline underline-offset-2"
+                    onClick={() => void openUrl('https://openrouter.ai/settings/management-keys')}
+                  >
+                    Create one here
+                  </button>
+                  . It is only ever used to read the balance.
+                </p>
+              </section>
+
               <section className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-3 text-sm">
                 <div>
                   <div className="font-medium">Fallback model</div>
