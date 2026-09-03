@@ -9,6 +9,8 @@ export interface Settings {
   defaultThinking: ThinkingLevel;
   titleModelId: string;
   autoTitle: boolean;
+  /** Use Mistral OCR ($2 / 1000 pages) for PDFs instead of free text extraction / native reading. */
+  pdfOcr: boolean;
   sendKey: SendKey;
   favouriteModelIds: string[];
   recentModelIds: string[];
@@ -28,6 +30,7 @@ const DEFAULTS: Settings = {
   defaultThinking: 'medium',
   titleModelId: 'openai/gpt-oss-120b',
   autoTitle: true,
+  pdfOcr: false,
   sendKey: 'enter',
   favouriteModelIds: DEFAULT_FAVOURITES,
   recentModelIds: [],

@@ -16,6 +16,12 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/002_system_usage.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "message attachments",
+            sql: include_str!("../migrations/003_attachments.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

@@ -212,6 +212,21 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
                   {settings.autoTitle ? 'On' : 'Off'}
                 </Button>
 
+                <div>
+                  <div className="font-medium">PDF OCR</div>
+                  <div className="text-muted-foreground text-xs">
+                    Mistral OCR for scanned PDFs, $2 per 1000 pages. Off uses native reading or free
+                    text extraction.
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void update({ pdfOcr: !settings.pdfOcr })}
+                >
+                  {settings.pdfOcr ? 'On' : 'Off'}
+                </Button>
+
                 <div className="font-medium">Send with</div>
                 <DropdownMenu>
                   <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>

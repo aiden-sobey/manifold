@@ -38,6 +38,61 @@
           "path": "$DESKTOP/**"
         }
       ]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        {
+          "path": "$APPDATA/attachments"
+        },
+        {
+          "path": "$APPDATA/attachments/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        {
+          "path": "$APPDATA/attachments"
+        },
+        {
+          "path": "$APPDATA/attachments/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [
+        {
+          "path": "$APPDATA/attachments"
+        },
+        {
+          "path": "$APPDATA/attachments/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        {
+          "path": "$APPDATA/attachments"
+        },
+        {
+          "path": "$APPDATA/attachments/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        {
+          "path": "$APPDATA/attachments"
+        },
+        {
+          "path": "$APPDATA/attachments/**"
+        }
+      ]
     }
   ]
 }

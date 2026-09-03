@@ -33,6 +33,27 @@ export interface Usage {
   [k: string]: unknown;
 }
 
+export type AttachmentKind = 'image' | 'pdf' | 'text';
+
+export interface Attachment {
+  id: string;
+  messageId: string;
+  chatId: string;
+  kind: AttachmentKind;
+  name: string;
+  mime: string;
+  size: number;
+  /** Path under the app data directory, e.g. attachments/<chatId>/<id>.png */
+  relPath: string;
+  width: number | null;
+  height: number | null;
+  /** Text kind: the file contents, inlined into the prompt. */
+  textContent: string | null;
+  /** PDF kind: OpenRouter's parsed-file annotation, reused on later turns to skip re-parsing. */
+  annotation: unknown;
+  createdAt: number;
+}
+
 export interface Message {
   id: string;
   chatId: string;
@@ -47,6 +68,7 @@ export interface Message {
   streaming?: boolean;
   /** Set when the request failed; shown under the bubble. */
   error?: string;
+  attachments?: Attachment[];
 }
 
 export interface SearchResult {

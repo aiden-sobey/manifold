@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Check, ChevronDown, RefreshCw, Star, X } from 'lucide-react';
+import { Check, ChevronDown, FileText, Image as ImageIcon, RefreshCw, Star, X } from 'lucide-react';
+import { acceptsFiles, acceptsImages } from '@/lib/attachments/support';
+import { useAttachmentDraft } from '@/store/attachmentDraftStore';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -47,6 +49,9 @@ export function ModelPicker({ onOpenSettings }: { onOpenSettings: () => void }) 
   const toggleFavourite = useSettings((s) => s.toggleFavourite);
 
   const selected = useModels((s) => s.byId.get(selectedId));
+  const pending = useAttachmentDraft((s) => s.pending);
+  const needsImages = pending.some((p) => p.kind === 'image');
+  const incompatible = (m: OpenRouterModel) => needsImages && !acceptsImages(m);
 
   const groups = useMemo(() => {
     const byId = new Map(models.map((m) => [m.id, m]));
@@ -78,7 +83,8 @@ export function ModelPicker({ onOpenSettings }: { onOpenSettings: () => void }) 
       key={m.id}
       value={`${m.id} ${m.name}`}
       onSelect={() => pick(m.id)}
-      className="group/item flex items-center gap-2"
+      className={cn('group/item flex items-center gap-2', incompatible(m) && 'opacity-40')}
+      title={incompatible(m) ? "Can't read the attached images" : undefined}
     >
       <ProviderIcon modelId={m.id} />
       <div className="min-w-0 flex-1">
@@ -88,6 +94,15 @@ export function ModelPicker({ onOpenSettings }: { onOpenSettings: () => void }) 
             <span className="bg-muted text-muted-foreground rounded px-1 text-[10px] leading-4">
               thinks
             </span>
+          ) : null}
+          {acceptsImages(m) ? (
+            <ImageIcon
+              className="text-muted-foreground size-3 shrink-0"
+              aria-label="Reads images"
+            />
+          ) : null}
+          {acceptsFiles(m) ? (
+            <FileText className="text-muted-foreground size-3 shrink-0" aria-label="Reads PDFs" />
           ) : null}
         </div>
         <div className="text-muted-foreground truncate font-mono text-[11px]">{m.id}</div>

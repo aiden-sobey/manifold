@@ -8,6 +8,7 @@ A lightweight desktop chat client for testing different AI models through
 - Thinking level control, driven by each model's advertised reasoning support
 - Collapsible reasoning ("thought process") block
 - Chat history with auto-generated titles, full-text search (SQLite FTS5)
+- Attachments: drop, paste, or attach images, PDFs, and text/code files. Images go to vision models as base64, PDFs use OpenRouter's file parser (native where the model supports it, free text extraction otherwise, optional Mistral OCR), text files are inlined. Files are stored under the app data folder in `attachments/`.
 - Analytics: all-time and recent spend, stacked spend/tokens by model per day, week or month, per-model table, CSV export. Spend comes from OpenRouter's charged cost on each reply. Deleting a chat removes its replies and therefore its spend from analytics.
 - API key stored in the macOS keychain, history in a local SQLite database
 

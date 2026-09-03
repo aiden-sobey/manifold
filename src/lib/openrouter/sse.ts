@@ -42,6 +42,9 @@ export function chunkToEvents(payload: string): StreamEvent[] {
     if (delta.content) events.push({ type: 'content', text: delta.content });
   }
 
+  const annotations = delta?.annotations ?? choice?.message?.annotations;
+  if (annotations?.length) events.push({ type: 'annotations', annotations });
+
   if (chunk.usage) events.push({ type: 'usage', usage: chunk.usage });
 
   if (choice?.finish_reason) {

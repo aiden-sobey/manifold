@@ -1,6 +1,26 @@
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+  | { type: 'file'; file: { filename: string; file_data: string } };
+
+export interface FileAnnotation {
+  type: 'file';
+  file: { hash?: string; name?: string; content?: unknown };
+  [k: string]: unknown;
+}
+
 export interface ChatMessageParam {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | ContentPart[];
+  /** Returned by OpenRouter after parsing a PDF; echo back on later turns to skip re-parsing. */
+  annotations?: FileAnnotation[];
+}
+
+export type PdfEngine = 'native' | 'cloudflare-ai' | 'mistral-ocr';
+
+export interface FileParserPlugin {
+  id: 'file-parser';
+  pdf: { engine: PdfEngine };
 }
 
 export interface ReasoningParam {
@@ -17,6 +37,7 @@ export interface ChatCompletionRequest {
   max_tokens?: number;
   temperature?: number;
   reasoning?: ReasoningParam;
+  plugins?: FileParserPlugin[];
 }
 
 export interface ReasoningDetail {
@@ -36,7 +57,9 @@ export interface StreamChunk {
       content?: string | null;
       reasoning?: string | null;
       reasoning_details?: ReasoningDetail[];
+      annotations?: FileAnnotation[];
     };
+    message?: { annotations?: FileAnnotation[] };
     finish_reason?: string | null;
   }>;
   usage?: Record<string, unknown>;
@@ -75,5 +98,6 @@ export type StreamEvent =
   | { type: 'content'; text: string }
   | { type: 'reasoning'; text: string }
   | { type: 'usage'; usage: Record<string, unknown> }
+  | { type: 'annotations'; annotations: FileAnnotation[] }
   | { type: 'error'; code?: string | number; message: string }
   | { type: 'done'; finishReason: string | null };

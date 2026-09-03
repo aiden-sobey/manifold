@@ -7,6 +7,7 @@ import { Composer } from '@/components/composer/Composer';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { AnalyticsView } from '@/components/analytics/AnalyticsView';
+import { DropOverlay } from '@/components/chat/DropOverlay';
 import { useUi } from '@/store/uiStore';
 import { pickDefaultModel, useChat } from '@/store/chatStore';
 import { useModels } from '@/store/modelStore';
@@ -111,6 +112,7 @@ export default function App() {
           setSettingsOpen(false);
         }}
       />
+      <DropOverlay />
       <Toaster position="bottom-right" />
     </TooltipProvider>
   );

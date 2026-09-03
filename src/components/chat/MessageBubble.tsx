@@ -6,6 +6,7 @@ import { useModels } from '@/store/modelStore';
 import type { Message } from '@/types/domain';
 import { Markdown } from './Markdown';
 import { ReasoningBlock } from './ReasoningBlock';
+import { MessageAttachments } from './MessageAttachments';
 import { useCopy } from '@/lib/useCopy';
 import { chatCost, formatCost, formatTokens, messageCost } from '@/lib/cost';
 
@@ -17,10 +18,13 @@ interface Props {
 export const MessageBubble = memo(function MessageBubble({ message, isLast }: Props) {
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
-        <div className="bg-muted max-w-[80%] rounded-2xl px-4 py-2.5 text-[15px] leading-7 whitespace-pre-wrap">
-          {message.content}
-        </div>
+      <div className="flex flex-col items-end gap-2">
+        {message.attachments?.length ? <MessageAttachments items={message.attachments} /> : null}
+        {message.content ? (
+          <div className="bg-muted max-w-[80%] rounded-2xl px-4 py-2.5 text-[15px] leading-7 whitespace-pre-wrap">
+            {message.content}
+          </div>
+        ) : null}
       </div>
     );
   }

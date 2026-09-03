@@ -5,7 +5,22 @@ import { OpenRouterError, streamChat } from '@/lib/openrouter/client';
 import { toReasoningParam } from '@/lib/openrouter/reasoning';
 import type { ChatMessageParam } from '@/lib/openrouter/types';
 import { fallbackTitle, generateTitle } from '@/lib/titling';
-import type { Chat, FinishReason, Message, SearchResult, ThinkingLevel } from '@/types/domain';
+import { buildHistory, pluginsFor } from '@/lib/attachments/content';
+import {
+  readAttachmentBytes,
+  relPathFor,
+  removeChatAttachments,
+  writeAttachmentBytes,
+} from '@/lib/attachments/storage';
+import type { PendingAttachment } from './attachmentDraftStore';
+import type {
+  Attachment,
+  Chat,
+  FinishReason,
+  Message,
+  SearchResult,
+  ThinkingLevel,
+} from '@/types/domain';
 import { useModels } from './modelStore';
 import { useSettings } from './settingsStore';
 import { useUi } from './uiStore';
@@ -47,7 +62,7 @@ interface ChatState {
   renameChat: (id: string, title: string) => Promise<void>;
   setDraftModel: (modelId: string) => Promise<void>;
   setDraftThinking: (level: ThinkingLevel) => Promise<void>;
-  send: (text: string) => Promise<void>;
+  send: (text: string, attachments?: PendingAttachment[]) => Promise<void>;
   stop: () => void;
   regenerate: () => Promise<void>;
   setSearch: (q: string) => Promise<void>;
@@ -104,6 +119,7 @@ export const useChat = create<ChatState>((set, get) => ({
 
   deleteChat: async (id) => {
     await db.deleteChat(id);
+    removeChatAttachments(id).catch(() => undefined);
     set((s) => ({ chats: s.chats.filter((c) => c.id !== id) }));
     if (get().activeChatId === id) get().newChat();
     if (get().searchQuery) await get().setSearch(get().searchQuery);
@@ -136,9 +152,9 @@ export const useChat = create<ChatState>((set, get) => ({
     }
   },
 
-  send: async (text) => {
+  send: async (text, attachments = []) => {
     const content = text.trim();
-    if (!content || get().streaming) return;
+    if ((!content && attachments.length === 0) || get().streaming) return;
     const now = Date.now();
     let chatId = get().activeChatId;
     const modelId = get().draftModelId;
@@ -147,7 +163,7 @@ export const useChat = create<ChatState>((set, get) => ({
     if (!chatId) {
       const chat: Chat = {
         id: uuid(),
-        title: fallbackTitle(content),
+        title: fallbackTitle(content || attachments.map((a) => a.name).join(', ')),
         titleSource: 'fallback',
         modelId,
         thinking,
@@ -171,6 +187,30 @@ export const useChat = create<ChatState>((set, get) => ({
       createdAt: now,
     };
     await db.insertMessage(userMsg);
+
+    const stored: Attachment[] = [];
+    for (const a of attachments) {
+      const relPath = relPathFor(chatId, a.id, a.ext);
+      await writeAttachmentBytes(relPath, a.bytes);
+      const row: Attachment = {
+        id: a.id,
+        messageId: userMsg.id,
+        chatId,
+        kind: a.kind,
+        name: a.name,
+        mime: a.mime,
+        size: a.size,
+        relPath,
+        width: a.width,
+        height: a.height,
+        textContent: a.textContent,
+        annotation: null,
+        createdAt: now,
+      };
+      await db.insertAttachment(row);
+      stored.push(row);
+    }
+    if (stored.length) userMsg.attachments = stored;
     set((s) => ({ messages: [...s.messages, userMsg] }));
 
     // Title the chat from the first message right away, in parallel with the reply.
@@ -250,9 +290,26 @@ async function runCompletion(
     return;
   }
 
-  const history: ChatMessageParam[] = get()
-    .messages.filter((m) => !m.streaming && m.content && m.finishReason !== 'error')
-    .map((m) => ({ role: m.role, content: m.content }));
+  const sendable = get().messages.filter(
+    (m) => !m.streaming && (m.content || m.attachments?.length) && m.finishReason !== 'error',
+  );
+  let history: ChatMessageParam[];
+  try {
+    history = await buildHistory(sendable, readAttachmentBytes);
+  } catch (e) {
+    set((s) => ({
+      messages: updateLast(s.messages, {
+        streaming: false,
+        finishReason: 'error',
+        error: `Could not read an attachment: ${e instanceof Error ? e.message : String(e)}`,
+      }),
+      streaming: false,
+      abort: null,
+    }));
+    return;
+  }
+  const plugins = pluginsFor(sendable, model, useSettings.getState().settings.pdfOcr);
+  const lastUser = [...sendable].reverse().find((m) => m.role === 'user');
 
   let content = '';
   let reasoning = '';
@@ -279,6 +336,7 @@ async function runCompletion(
         model: modelId,
         messages: history,
         reasoning: toReasoningParam(thinking, model),
+        plugins,
       },
       controller.signal,
     );
@@ -295,6 +353,22 @@ async function runCompletion(
         case 'usage':
           usage = ev.usage;
           break;
+        case 'annotations': {
+          // Attach parsed-PDF annotations to the PDFs on the last user turn so later turns skip re-parsing.
+          const pdfs = (lastUser?.attachments ?? []).filter(
+            (a) => a.kind === 'pdf' && !a.annotation,
+          );
+          for (const ann of ev.annotations) {
+            if (ann.type !== 'file') continue;
+            const target =
+              pdfs.find((a) => a.name === ann.file?.name) ??
+              (pdfs.length === 1 ? pdfs[0] : undefined);
+            if (!target) continue;
+            target.annotation = ann;
+            void db.updateAttachmentAnnotation(target.id, ann);
+          }
+          break;
+        }
         case 'done':
           finishReason = (ev.finishReason as FinishReason | null) ?? 'stop';
           break;

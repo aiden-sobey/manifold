@@ -1,5 +1,7 @@
 import Database from '@tauri-apps/plugin-sql';
 import type {
+  Attachment,
+  AttachmentKind,
   Chat,
   FinishReason,
   Message,
@@ -115,13 +117,102 @@ export async function deleteChat(id: string): Promise<void> {
 }
 
 export async function listMessages(chatId: string): Promise<Message[]> {
+  const d = await db();
+  const [rows, atts] = await Promise.all([
+    d.select<MessageRow[]>(
+      'SELECT * FROM messages WHERE chat_id = $1 ORDER BY created_at ASC, rowid ASC',
+      [chatId],
+    ),
+    listAttachmentsForChat(chatId),
+  ]);
+  const byMessage = new Map<string, Attachment[]>();
+  for (const at of atts) {
+    const list = byMessage.get(at.messageId) ?? [];
+    list.push(at);
+    byMessage.set(at.messageId, list);
+  }
+  return rows.map((r) => {
+    const m = toMessage(r);
+    const list = byMessage.get(m.id);
+    return list ? { ...m, attachments: list } : m;
+  });
+}
+
+// ---- attachments ----
+
+interface AttachmentRow {
+  id: string;
+  message_id: string;
+  chat_id: string;
+  kind: AttachmentKind;
+  name: string;
+  mime: string;
+  size: number;
+  rel_path: string;
+  width: number | null;
+  height: number | null;
+  text_content: string | null;
+  annotation_json: string | null;
+  created_at: number;
+}
+
+const toAttachment = (r: AttachmentRow): Attachment => ({
+  id: r.id,
+  messageId: r.message_id,
+  chatId: r.chat_id,
+  kind: r.kind,
+  name: r.name,
+  mime: r.mime,
+  size: r.size,
+  relPath: r.rel_path,
+  width: r.width,
+  height: r.height,
+  textContent: r.text_content,
+  annotation: r.annotation_json ? (JSON.parse(r.annotation_json) as unknown) : null,
+  createdAt: r.created_at,
+});
+
+export async function listAttachmentsForChat(chatId: string): Promise<Attachment[]> {
   const rows = await (
     await db()
-  ).select<MessageRow[]>(
-    'SELECT * FROM messages WHERE chat_id = $1 ORDER BY created_at ASC, rowid ASC',
+  ).select<AttachmentRow[]>(
+    'SELECT * FROM attachments WHERE chat_id = $1 ORDER BY created_at ASC, rowid ASC',
     [chatId],
   );
-  return rows.map(toMessage);
+  return rows.map(toAttachment);
+}
+
+export async function insertAttachment(a: Attachment): Promise<void> {
+  await (
+    await db()
+  ).execute(
+    `INSERT INTO attachments (id, message_id, chat_id, kind, name, mime, size, rel_path, width, height, text_content, annotation_json, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    [
+      a.id,
+      a.messageId,
+      a.chatId,
+      a.kind,
+      a.name,
+      a.mime,
+      a.size,
+      a.relPath,
+      a.width,
+      a.height,
+      a.textContent,
+      a.annotation ? JSON.stringify(a.annotation) : null,
+      a.createdAt,
+    ],
+  );
+}
+
+export async function updateAttachmentAnnotation(id: string, annotation: unknown): Promise<void> {
+  await (
+    await db()
+  ).execute('UPDATE attachments SET annotation_json = $1 WHERE id = $2', [
+    JSON.stringify(annotation),
+    id,
+  ]);
 }
 
 export async function insertMessage(m: Message): Promise<void> {
