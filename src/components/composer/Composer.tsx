@@ -5,6 +5,7 @@ import { useAttachmentDraft } from '@/store/attachmentDraftStore';
 import { useModels } from '@/store/modelStore';
 import { supportIssues } from '@/lib/attachments/support';
 import { shortName } from '@/lib/modelName';
+import { isMobile } from '@/lib/platform';
 import { AttachmentChips } from './AttachmentChips';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -60,7 +61,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
     const el = ref.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(Math.max(el.scrollHeight, 72), 280)}px`;
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, isMobile ? 48 : 72), 280)}px`;
   }, [text]);
 
   const canSend = (text.trim().length > 0 || pending.length > 0) && !blocked;
@@ -82,7 +83,8 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter') return;
+    // Phone keyboards: Enter always inserts a newline; the arrow button sends.
+    if (isMobile || e.key !== 'Enter') return;
     const mod = e.metaKey || e.ctrlKey;
     if (sendKey === 'enter' && !e.shiftKey && !mod) {
       e.preventDefault();
@@ -94,7 +96,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
   };
 
   return (
-    <div className="shrink-0 px-4 pb-4">
+    <div className="shrink-0 px-2 pb-2 md:px-4 md:pb-4">
       <div className="bg-card border-border focus-within:ring-ring/30 mx-auto w-full max-w-3xl rounded-2xl border shadow-sm focus-within:ring-2">
         <AttachmentChips items={pending} issues={issues} onRemove={removeFile} />
         <Textarea
@@ -105,7 +107,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
           onPaste={onPaste}
           placeholder="Message…"
           rows={1}
-          className="max-h-[280px] min-h-[72px] resize-none rounded-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-[15px] shadow-none focus-visible:ring-0 dark:bg-transparent"
+          className="max-h-[280px] min-h-[48px] resize-none rounded-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-[15px] shadow-none focus-visible:ring-0 md:min-h-[72px] dark:bg-transparent"
         />
         <div className="flex items-center gap-1 px-2.5 py-2.5">
           <input
@@ -113,7 +115,13 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
             type="file"
             multiple
             hidden
-            accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/*,.md,.json,.csv,.ts,.tsx,.js,.py,.rs,.go,.java,.yaml,.yml,.toml,.xml,.html,.css,.sql,.sh"
+            // Android maps this list to MIME types and drops bare extensions, which would hide
+            // most code files in the picker; detectKind() sniffs content anyway.
+            accept={
+              isMobile
+                ? '*/*'
+                : 'image/png,image/jpeg,image/webp,image/gif,application/pdf,text/*,.md,.json,.csv,.ts,.tsx,.js,.py,.rs,.go,.java,.yaml,.yml,.toml,.xml,.html,.css,.sql,.sh'
+            }
             onChange={(e) => {
               if (e.target.files?.length) void addFiles(e.target.files);
               e.target.value = '';
@@ -127,7 +135,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
               <ThinkingLevel />
             </>
           )}
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"
               size="icon-sm"

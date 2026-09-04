@@ -136,7 +136,9 @@ export function ModelPicker({ onOpenSettings, lane }: ModelPickerProps) {
         }}
         className={cn(
           'text-muted-foreground hover:text-foreground shrink-0 p-0.5',
-          favourites.includes(m.id) ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-60',
+          favourites.includes(m.id)
+            ? 'opacity-100'
+            : 'opacity-0 group-hover/item:opacity-60 pointer-coarse:opacity-60',
         )}
       >
         <Star className={cn('size-3.5', favourites.includes(m.id) && 'fill-current')} />
@@ -153,7 +155,13 @@ export function ModelPicker({ onOpenSettings, lane }: ModelPickerProps) {
       }}
     >
       <PopoverTrigger
-        render={<Button variant="ghost" size="sm" className="max-w-[260px] gap-1.5 font-medium" />}
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="max-w-[260px] min-w-0 shrink gap-1.5 font-medium"
+          />
+        }
       >
         {selectedId ? <ProviderIcon modelId={selectedId} /> : null}
         <span className="truncate">
@@ -161,7 +169,7 @@ export function ModelPicker({ onOpenSettings, lane }: ModelPickerProps) {
         </span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[440px] p-0">
+      <PopoverContent align="start" className="w-[min(440px,calc(100vw-1.5rem))] p-0">
         <Command>
           <div className="flex items-center pr-2 [&>[data-slot=command-input-wrapper]]:flex-1">
             <CommandInput placeholder="Search models…" value={query} onValueChange={setQuery} />

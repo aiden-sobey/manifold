@@ -26,3 +26,11 @@ dist-ssr
 # Rust
 src-tauri/target
 src-tauri/gen/schemas
+
+# Android (generated project is committed; build outputs and secrets are not)
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/build/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/local.properties
+src-tauri/gen/android/keystore.properties
+*.jks

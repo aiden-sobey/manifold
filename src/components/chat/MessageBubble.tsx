@@ -83,7 +83,7 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
           {/* Default: running total for the whole conversation, on the last message only. */}
           {total ? (
             <span
-              className="truncate group-hover:hidden"
+              className="truncate group-hover:hidden pointer-coarse:hidden"
               title={
                 total.exact
                   ? 'Total charged by OpenRouter for this conversation'
@@ -97,7 +97,7 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
           <span
             className={cn(
               'min-w-0 items-center truncate',
-              compare ? 'flex' : 'hidden group-hover:flex',
+              compare ? 'flex' : 'hidden group-hover:flex pointer-coarse:flex',
             )}
           >
             <span className="truncate">{modelName}</span>
@@ -123,7 +123,7 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
               </span>
             ) : null}
           </span>
-          <span className="ml-auto flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="ml-auto flex items-center opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100">
             {message.content ? (
               <Button
                 variant="ghost"

@@ -3,6 +3,7 @@ import { useTheme } from 'next-themes';
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { isDesktop } from '@/lib/platform';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -128,7 +129,7 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
             {required
-              ? 'Add your OpenRouter API key to get started. It is stored in the macOS keychain.'
+              ? `Add your OpenRouter API key to get started. It is stored ${isDesktop ? 'in the macOS keychain' : 'privately on this device'}.`
               : 'Keys, defaults and appearance.'}
           </DialogDescription>
         </DialogHeader>
@@ -297,21 +298,25 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
                   {settings.pdfOcr ? 'On' : 'Off'}
                 </Button>
 
-                <div className="font-medium">Send with</div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-                    {settings.sendKey === 'enter' ? 'Enter' : '⌘ Enter'}
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuRadioGroup
-                      value={settings.sendKey}
-                      onValueChange={(v) => void update({ sendKey: v as SendKey })}
-                    >
-                      <DropdownMenuRadioItem value="enter">Enter</DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="mod-enter">⌘ Enter</DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {isDesktop ? (
+                  <>
+                    <div className="font-medium">Send with</div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+                        {settings.sendKey === 'enter' ? 'Enter' : '⌘ Enter'}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuRadioGroup
+                          value={settings.sendKey}
+                          onValueChange={(v) => void update({ sendKey: v as SendKey })}
+                        >
+                          <DropdownMenuRadioItem value="enter">Enter</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="mod-enter">⌘ Enter</DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                ) : null}
 
                 <div className="font-medium">Theme</div>
                 <DropdownMenu>

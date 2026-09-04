@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isDesktop } from '@/lib/platform';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useChat } from '@/store/chatStore';
@@ -22,7 +23,7 @@ export function SearchInput() {
         onKeyDown={(e) => {
           if (e.key === 'Escape') setValue('');
         }}
-        placeholder="Search chats  ⌘K"
+        placeholder={isDesktop ? 'Search chats  ⌘K' : 'Search chats'}
         className="bg-background h-9 pr-8 pl-8"
       />
       {value && (

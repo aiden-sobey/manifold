@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { isDesktop } from '@/lib/platform';
 import { Button } from '@/components/ui/button';
 import { shortName } from '@/lib/modelName';
 import {
@@ -100,7 +101,7 @@ export function AnalyticsView() {
             summaries={data.summaries}
             seriesIds={data.seriesIds}
             nameOf={nameOf}
-            onExport={() => void exportCsv()}
+            onExport={isDesktop ? () => void exportCsv() : undefined}
             loading={data.loading}
           />
           {data.totals && data.totals.replies === 0 && !data.loading ? (

@@ -25,7 +25,10 @@ serde_json = "1"
 tauri-plugin-sql = { version = "2.4.1", features = ["sqlite"] }
 tauri-plugin-store = "2.4.4"
 tauri-plugin-http = "2.6.0"
-keyring = "4"
 tauri-plugin-dialog = "2.7.3"
 tauri-plugin-fs = "2.5.2"
 
+
+# No keyring backend exists for mobile; see src/keychain.rs for the store-backed fallback.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+keyring = "4"

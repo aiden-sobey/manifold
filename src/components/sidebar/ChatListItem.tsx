@@ -93,7 +93,7 @@ export function ChatListItem({
                 size="icon-xs"
                 aria-label="Chat actions"
                 className={cn(
-                  'mt-1.5 mr-1 opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100',
+                  'mt-1.5 mr-1 opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100 pointer-coarse:opacity-100',
                   active && 'opacity-100',
                 )}
               />

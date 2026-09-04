@@ -15,12 +15,15 @@ import { pickDefaultModel, useChat } from '@/store/chatStore';
 import { useModels } from '@/store/modelStore';
 import { useSettings } from '@/store/settingsStore';
 import { getApiKey } from '@/lib/keychain';
+import { isMobile } from '@/lib/platform';
+import { MD_UP, matches } from '@/lib/useMediaQuery';
 import { toast } from 'sonner';
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [needsKey, setNeedsKey] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Open by default on wide screens; a drawer that starts closed on phones.
+  const [sidebarOpen, setSidebarOpen] = useState(() => matches(MD_UP));
   const loaded = useChat((s) => s.loaded);
   const view = useUi((s) => s.view);
   const compare = useChat((s) => s.draftMode === 'compare');
@@ -87,7 +90,7 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-full w-full">
+      <div className="flex h-dvh w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         <Sidebar
           open={sidebarOpen}
           onToggle={() => setSidebarOpen((v) => !v)}
@@ -134,7 +137,7 @@ export default function App() {
         }}
       />
       <DropOverlay />
-      <Toaster position="bottom-right" />
+      <Toaster position={isMobile ? 'top-center' : 'bottom-right'} />
     </TooltipProvider>
   );
 }

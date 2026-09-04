@@ -43,7 +43,7 @@ export function ThinkingLevel({ lane }: { lane?: number }) {
         }
       >
         <Brain className="size-4" />
-        <span>{LEVEL_LABELS[effective]}</span>
+        <span className="hidden sm:inline">{LEVEL_LABELS[effective]}</span>
         <ChevronDown className="size-3.5 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

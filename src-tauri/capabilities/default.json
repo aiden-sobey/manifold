@@ -1,12 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Capability for the main window on every platform",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:window:allow-toggle-maximize",
-    "core:window:allow-start-dragging",
     "opener:default",
     "store:default",
     "sql:default",
@@ -18,24 +16,6 @@
       "allow": [
         {
           "url": "https://openrouter.ai/*"
-        }
-      ]
-    },
-    "dialog:allow-save",
-    {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [
-        {
-          "path": "$HOME/**"
-        },
-        {
-          "path": "$DOWNLOAD/**"
-        },
-        {
-          "path": "$DOCUMENT/**"
-        },
-        {
-          "path": "$DESKTOP/**"
         }
       ]
     },

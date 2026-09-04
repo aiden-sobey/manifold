@@ -15,7 +15,8 @@ interface Props {
   summaries: ModelSummary[] | undefined;
   seriesIds: string[] | undefined;
   nameOf: (id: string) => string;
-  onExport: () => void;
+  /** Omitted on mobile, where there is no native save dialog. */
+  onExport?: () => void;
   loading: boolean;
 }
 
@@ -79,15 +80,17 @@ export function ModelTable({ summaries, seriesIds, nameOf, onExport, loading }: 
       <div className="flex items-center gap-2 px-4 py-3">
         <h2 className="text-sm font-semibold">Models</h2>
         <span className="text-muted-foreground text-xs">in selected range</span>
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto gap-1.5"
-          onClick={onExport}
-          disabled={loading || rows.length === 0}
-        >
-          <Download className="size-3.5" /> Export CSV
-        </Button>
+        {onExport ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto gap-1.5"
+            onClick={onExport}
+            disabled={loading || rows.length === 0}
+          >
+            <Download className="size-3.5" /> Export CSV
+          </Button>
+        ) : null}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
