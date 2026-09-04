@@ -80,6 +80,9 @@ describe('history and plugins', () => {
       modelId: null,
       finishReason: null,
       usage: null,
+      lane: null,
+      firstTokenMs: null,
+      totalMs: null,
       createdAt: 0,
       attachments: [
         att({
@@ -100,6 +103,9 @@ describe('history and plugins', () => {
       modelId: 'v',
       finishReason: 'stop',
       usage: null,
+      lane: null,
+      firstTokenMs: null,
+      totalMs: null,
       createdAt: 1,
     },
     {
@@ -111,6 +117,9 @@ describe('history and plugins', () => {
       modelId: null,
       finishReason: null,
       usage: null,
+      lane: null,
+      firstTokenMs: null,
+      totalMs: null,
       createdAt: 2,
     },
   ];

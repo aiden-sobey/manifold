@@ -15,12 +15,23 @@ export type Role = 'user' | 'assistant';
 export type FinishReason =
   'stop' | 'length' | 'error' | 'aborted' | 'content_filter' | 'tool_calls';
 
+export type ChatMode = 'single' | 'compare';
+
+export interface Lane {
+  modelId: string;
+  thinking: ThinkingLevel;
+}
+
 export interface Chat {
   id: string;
   title: string;
   titleSource: TitleSource;
+  /** Lane 0's model and thinking, kept for everything that assumes one model per chat. */
   modelId: string;
   thinking: ThinkingLevel;
+  mode: ChatMode;
+  /** Present for compare chats. */
+  lanes: Lane[] | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -63,6 +74,11 @@ export interface Message {
   modelId: string | null;
   finishReason: FinishReason | null;
   usage: Usage | null;
+  /** Compare mode: which column this reply belongs to. Null for user messages and single-mode replies. */
+  lane: number | null;
+  /** Client-measured latency, ms from request start. */
+  firstTokenMs: number | null;
+  totalMs: number | null;
   createdAt: number;
   /** Only true for the in-memory placeholder while a reply streams. */
   streaming?: boolean;

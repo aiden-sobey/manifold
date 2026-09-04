@@ -12,11 +12,14 @@ import {
   removeChatAttachments,
   writeAttachmentBytes,
 } from '@/lib/attachments/storage';
+import { historyForLane, lastReplyForLane } from '@/lib/turns';
 import type { PendingAttachment } from './attachmentDraftStore';
 import type {
   Attachment,
   Chat,
+  ChatMode,
   FinishReason,
+  Lane,
   Message,
   SearchResult,
   ThinkingLevel,
@@ -43,15 +46,29 @@ export function pickDefaultModel(): string {
   return cheapest?.id ?? favouriteModelIds[0] ?? defaultModelId;
 }
 
+/** Second lane default: most recent model that differs from lane 0, else another favourite, else lane 0. */
+export function pickSecondModel(first: string): string {
+  const { recentModelIds, favouriteModelIds } = useSettings.getState().settings;
+  return (
+    recentModelIds.find((id) => id !== first) ??
+    favouriteModelIds.find((id) => id !== first) ??
+    first
+  );
+}
+
 interface ChatState {
   chats: Chat[];
   activeChatId: string | null;
   messages: Message[];
-  /** Model/thinking for the composer. Mirrors the active chat, or the defaults for a new chat. */
+  /** Lane 0's model/thinking for the composer. Mirrors the active chat, or the defaults for a new chat. */
   draftModelId: string;
   draftThinking: ThinkingLevel;
+  draftMode: ChatMode;
+  /** Both lanes when draftMode is 'compare'. Lane 0 mirrors draftModelId/draftThinking. */
+  draftLanes: Lane[];
+  /** In-flight replies keyed by lane (0 for single mode). */
+  streams: Map<number, AbortController>;
   streaming: boolean;
-  abort: AbortController | null;
   searchQuery: string;
   searchResults: SearchResult[];
   loaded: boolean;
@@ -63,16 +80,24 @@ interface ChatState {
   renameChat: (id: string, title: string) => Promise<void>;
   setDraftModel: (modelId: string) => Promise<void>;
   setDraftThinking: (level: ThinkingLevel) => Promise<void>;
+  setLane: (lane: number, patch: Partial<Lane>) => Promise<void>;
+  enterCompareMode: () => void;
+  exitCompareMode: () => void;
+  continueWithLane: (lane: number) => Promise<void>;
   send: (text: string, attachments?: PendingAttachment[]) => Promise<void>;
   stop: () => void;
-  regenerate: () => Promise<void>;
+  regenerate: (lane?: number) => Promise<void>;
   setSearch: (q: string) => Promise<void>;
 }
 
-function updateLast(messages: Message[], patch: Partial<Message>): Message[] {
-  const last = messages[messages.length - 1];
-  if (!last) return messages;
-  return [...messages.slice(0, -1), { ...last, ...patch }];
+function patchMessage(messages: Message[], id: string, patch: Partial<Message>): Message[] {
+  return messages.map((m) => (m.id === id ? { ...m, ...patch } : m));
+}
+
+function lanesFromDraft(get: Get): Lane[] {
+  const { draftMode, draftLanes, draftModelId, draftThinking } = get();
+  if (draftMode === 'compare' && draftLanes.length >= 2) return draftLanes;
+  return [{ modelId: draftModelId, thinking: draftThinking }];
 }
 
 export const useChat = create<ChatState>((set, get) => ({
@@ -81,8 +106,10 @@ export const useChat = create<ChatState>((set, get) => ({
   messages: [],
   draftModelId: '',
   draftThinking: 'medium',
+  draftMode: 'single',
+  draftLanes: [],
+  streams: new Map(),
   streaming: false,
-  abort: null,
   searchQuery: '',
   searchResults: [],
   loaded: false,
@@ -103,6 +130,8 @@ export const useChat = create<ChatState>((set, get) => ({
       messages: [],
       draftModelId: pickDefaultModel(),
       draftThinking: defaultThinking,
+      draftMode: 'single',
+      draftLanes: [],
     });
   },
 
@@ -111,11 +140,14 @@ export const useChat = create<ChatState>((set, get) => ({
     useUi.getState().showChat();
     const chat = get().chats.find((c) => c.id === id);
     const messages = await db.listMessages(id);
+    const lanes = chat?.mode === 'compare' && chat.lanes ? chat.lanes : [];
     set({
       activeChatId: id,
       messages,
-      draftModelId: chat?.modelId ?? get().draftModelId,
-      draftThinking: chat?.thinking ?? 'default',
+      draftModelId: lanes[0]?.modelId ?? chat?.modelId ?? get().draftModelId,
+      draftThinking: lanes[0]?.thinking ?? chat?.thinking ?? 'default',
+      draftMode: chat?.mode ?? 'single',
+      draftLanes: lanes,
     });
   },
 
@@ -137,6 +169,7 @@ export const useChat = create<ChatState>((set, get) => ({
   },
 
   setDraftModel: async (modelId) => {
+    if (get().draftMode === 'compare') return get().setLane(0, { modelId });
     set({ draftModelId: modelId });
     const id = get().activeChatId;
     if (id) {
@@ -146,6 +179,7 @@ export const useChat = create<ChatState>((set, get) => ({
   },
 
   setDraftThinking: async (level) => {
+    if (get().draftMode === 'compare') return get().setLane(0, { thinking: level });
     set({ draftThinking: level });
     const id = get().activeChatId;
     if (id) {
@@ -154,21 +188,88 @@ export const useChat = create<ChatState>((set, get) => ({
     }
   },
 
+  setLane: async (lane, patch) => {
+    const lanes = get().draftLanes.map((l, i) => (i === lane ? { ...l, ...patch } : l));
+    const first = lanes[0];
+    set({
+      draftLanes: lanes,
+      ...(first ? { draftModelId: first.modelId, draftThinking: first.thinking } : {}),
+    });
+    const id = get().activeChatId;
+    if (id && first) {
+      await db.updateChat(id, { lanes, modelId: first.modelId, thinking: first.thinking });
+      set((s) => ({
+        chats: s.chats.map((c) =>
+          c.id === id ? { ...c, lanes, modelId: first.modelId, thinking: first.thinking } : c,
+        ),
+      }));
+    }
+  },
+
+  enterCompareMode: () => {
+    if (get().activeChatId !== null || get().messages.length > 0) return;
+    const { draftModelId, draftThinking } = get();
+    set({
+      draftMode: 'compare',
+      draftLanes: [
+        { modelId: draftModelId, thinking: draftThinking },
+        { modelId: pickSecondModel(draftModelId), thinking: draftThinking },
+      ],
+    });
+  },
+
+  exitCompareMode: () => {
+    if (get().activeChatId !== null || get().messages.length > 0) return;
+    set({ draftMode: 'single', draftLanes: [] });
+  },
+
+  continueWithLane: async (lane) => {
+    const { activeChatId, draftLanes, streaming } = get();
+    const keep = draftLanes[lane];
+    if (!activeChatId || streaming || !keep) return;
+    for (let i = 0; i < draftLanes.length; i++) {
+      if (i !== lane) await db.deleteLaneMessages(activeChatId, i);
+    }
+    await db.clearLane(activeChatId);
+    await db.updateChat(activeChatId, {
+      mode: 'single',
+      lanes: null,
+      modelId: keep.modelId,
+      thinking: keep.thinking,
+    });
+    const messages = await db.listMessages(activeChatId);
+    set((s) => ({
+      messages,
+      draftMode: 'single',
+      draftLanes: [],
+      draftModelId: keep.modelId,
+      draftThinking: keep.thinking,
+      chats: s.chats.map((c) =>
+        c.id === activeChatId
+          ? { ...c, mode: 'single', lanes: null, modelId: keep.modelId, thinking: keep.thinking }
+          : c,
+      ),
+    }));
+  },
+
   send: async (text, attachments = []) => {
     const content = text.trim();
     if ((!content && attachments.length === 0) || get().streaming) return;
     const now = Date.now();
     let chatId = get().activeChatId;
-    const modelId = get().draftModelId;
-    const thinking = get().draftThinking;
+    const lanes = lanesFromDraft(get);
+    const mode: ChatMode = lanes.length > 1 ? 'compare' : 'single';
+    const first = lanes[0]!;
 
     if (!chatId) {
       const chat: Chat = {
         id: uuid(),
         title: fallbackTitle(content || attachments.map((a) => a.name).join(', ')),
         titleSource: 'fallback',
-        modelId,
-        thinking,
+        modelId: first.modelId,
+        thinking: first.thinking,
+        mode,
+        lanes: mode === 'compare' ? lanes : null,
         createdAt: now,
         updatedAt: now,
       };
@@ -186,6 +287,9 @@ export const useChat = create<ChatState>((set, get) => ({
       modelId: null,
       finishReason: null,
       usage: null,
+      lane: null,
+      firstTokenMs: null,
+      totalMs: null,
       createdAt: now,
     };
     await db.insertMessage(userMsg);
@@ -223,21 +327,32 @@ export const useChat = create<ChatState>((set, get) => ({
       });
     }
 
-    await runCompletion(chatId, modelId, thinking, set, get);
+    if (mode === 'compare') {
+      await Promise.all(
+        lanes.map((lane, i) => streamReply(chatId, i, lane.modelId, lane.thinking, set, get)),
+      );
+    } else {
+      await streamReply(chatId, null, first.modelId, first.thinking, set, get);
+    }
   },
 
   stop: () => {
-    get().abort?.abort();
+    for (const c of get().streams.values()) c.abort();
   },
 
-  regenerate: async () => {
-    const { messages, activeChatId, streaming, draftModelId, draftThinking } = get();
+  regenerate: async (lane) => {
+    const { messages, activeChatId, streaming, draftMode } = get();
     if (streaming || !activeChatId) return;
-    const last = messages[messages.length - 1];
-    if (!last || last.role !== 'assistant') return;
-    if (!last.streaming) await db.deleteMessage(last.id);
-    set({ messages: messages.slice(0, -1) });
-    await runCompletion(activeChatId, draftModelId, draftThinking, set, get);
+    const lanes = lanesFromDraft(get);
+    const laneKey = draftMode === 'compare' ? (lane ?? 0) : null;
+    const target = lanes[laneKey ?? 0];
+    if (!target) return;
+    const last = lastReplyForLane(messages, laneKey);
+    if (last) {
+      if (!last.streaming) await db.deleteMessage(last.id);
+      set({ messages: messages.filter((m) => m.id !== last.id) });
+    }
+    await streamReply(activeChatId, laneKey, target.modelId, target.thinking, set, get);
   },
 
   setSearch: async (q) => {
@@ -254,8 +369,21 @@ export const useChat = create<ChatState>((set, get) => ({
 type Set = (fn: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>)) => void;
 type Get = () => ChatState;
 
-async function runCompletion(
+function trackStream(set: Set, get: Get, lane: number | null, controller: AbortController | null) {
+  const streams = new Map(get().streams);
+  const key = lane ?? 0;
+  if (controller) streams.set(key, controller);
+  else streams.delete(key);
+  set({ streams, streaming: streams.size > 0 });
+}
+
+/**
+ * Streams one reply for one lane (null lane = single-mode chat). Owns its own abort controller
+ * and placeholder message, so several can run concurrently for a comparison.
+ */
+async function streamReply(
   chatId: string,
+  lane: number | null,
   modelId: string,
   thinking: ThinkingLevel,
   set: Set,
@@ -264,6 +392,7 @@ async function runCompletion(
   const apiKey = await getApiKey();
   const model = useModels.getState().byId.get(modelId);
   const controller = new AbortController();
+  const startedAt = performance.now();
 
   const placeholder: Message = {
     id: uuid(),
@@ -274,40 +403,41 @@ async function runCompletion(
     modelId,
     finishReason: null,
     usage: null,
+    lane,
+    firstTokenMs: null,
+    totalMs: null,
     createdAt: Date.now(),
     streaming: true,
   };
-  set((s) => ({ messages: [...s.messages, placeholder], streaming: true, abort: controller }));
+  set((s) => ({ messages: [...s.messages, placeholder] }));
+  trackStream(set, get, lane, controller);
 
-  if (!apiKey) {
+  const fail = (error: string) => {
     set((s) => ({
-      messages: updateLast(s.messages, {
+      messages: patchMessage(s.messages, placeholder.id, {
         streaming: false,
         finishReason: 'error',
-        error: 'No API key set. Open Settings to add your OpenRouter key.',
+        error,
+        totalMs: Math.round(performance.now() - startedAt),
       }),
-      streaming: false,
-      abort: null,
     }));
+    trackStream(set, get, lane, null);
+  };
+
+  if (!apiKey) {
+    fail('No API key set. Open Settings to add your OpenRouter key.');
     return;
   }
 
-  const sendable = get().messages.filter(
+  // This lane's context: all user turns plus its own earlier replies.
+  const sendable = historyForLane(get().messages, lane).filter(
     (m) => !m.streaming && (m.content || m.attachments?.length) && m.finishReason !== 'error',
   );
   let history: ChatMessageParam[];
   try {
     history = await buildHistory(sendable, readAttachmentBytes);
   } catch (e) {
-    set((s) => ({
-      messages: updateLast(s.messages, {
-        streaming: false,
-        finishReason: 'error',
-        error: `Could not read an attachment: ${e instanceof Error ? e.message : String(e)}`,
-      }),
-      streaming: false,
-      abort: null,
-    }));
+    fail(`Could not read an attachment: ${e instanceof Error ? e.message : String(e)}`);
     return;
   }
   const plugins = pluginsFor(sendable, model, useSettings.getState().settings.pdfOcr);
@@ -318,17 +448,25 @@ async function runCompletion(
   let usage: Record<string, unknown> | null = null;
   let finishReason: FinishReason = 'stop';
   let error: string | undefined;
+  let firstTokenMs: number | null = null;
 
   // Batch store updates per animation frame so fast models don't re-render per token.
   let frame: number | null = null;
   const flush = () => {
     frame = null;
     set((s) => ({
-      messages: updateLast(s.messages, { content, reasoning: reasoning || null }),
+      messages: patchMessage(s.messages, placeholder.id, {
+        content,
+        reasoning: reasoning || null,
+        firstTokenMs,
+      }),
     }));
   };
   const schedule = () => {
     if (frame === null) frame = requestAnimationFrame(flush);
+  };
+  const markFirstToken = () => {
+    if (firstTokenMs === null) firstTokenMs = Math.round(performance.now() - startedAt);
   };
 
   try {
@@ -345,10 +483,12 @@ async function runCompletion(
     for await (const ev of stream) {
       switch (ev.type) {
         case 'content':
+          markFirstToken();
           content += ev.text;
           schedule();
           break;
         case 'reasoning':
+          markFirstToken();
           reasoning += ev.text;
           schedule();
           break;
@@ -397,6 +537,8 @@ async function runCompletion(
     reasoning: reasoning || null,
     usage,
     finishReason,
+    firstTokenMs,
+    totalMs: Math.round(performance.now() - startedAt),
     streaming: false,
     error,
   };
@@ -414,15 +556,9 @@ async function runCompletion(
       createdAt: final.createdAt,
     });
   }
-  const persisted = Boolean(content || reasoning);
 
-  set((s) => ({
-    messages: persisted
-      ? updateLast(s.messages, final)
-      : updateLast(s.messages, { ...final, id: placeholder.id }),
-    streaming: false,
-    abort: null,
-  }));
+  set((s) => ({ messages: patchMessage(s.messages, placeholder.id, final) }));
+  trackStream(set, get, lane, null);
 
   const updatedAt = Date.now();
   await db.updateChat(chatId, { updatedAt });
@@ -434,7 +570,10 @@ async function runCompletion(
 
   void useSettings.getState().noteRecent(modelId);
 
-  if (finishReason !== 'error' && content) void maybeAutoTitle(chatId, content, apiKey, set, get);
+  // Titles come from lane 0 (or the only lane).
+  if (finishReason !== 'error' && content && (lane === null || lane === 0)) {
+    void maybeAutoTitle(chatId, content, apiKey, set, get);
+  }
 }
 
 /** `reply` is null when titling early from the first user message alone. */
@@ -449,10 +588,8 @@ async function maybeAutoTitle(
   if (!settings.autoTitle) return;
   const chat = get().chats.find((c) => c.id === chatId);
   if (!chat || chat.titleSource !== 'fallback') return;
-  const assistantCount = get().messages.filter(
-    (m) => m.role === 'assistant' && !m.streaming,
-  ).length;
-  if (get().activeChatId === chatId && assistantCount > 1) return;
+  const userTurns = get().messages.filter((m) => m.role === 'user').length;
+  if (get().activeChatId === chatId && userTurns > 1) return;
 
   const firstUser = get().messages.find((m) => m.role === 'user')?.content ?? '';
   const titleModel = useModels.getState().byId.get(settings.titleModelId);

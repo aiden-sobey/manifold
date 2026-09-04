@@ -1,0 +1,5 @@
+ALTER TABLE chats ADD COLUMN mode TEXT NOT NULL DEFAULT 'single';
+ALTER TABLE chats ADD COLUMN lanes_json TEXT;
+ALTER TABLE messages ADD COLUMN lane INTEGER;
+ALTER TABLE messages ADD COLUMN first_token_ms INTEGER;
+ALTER TABLE messages ADD COLUMN total_ms INTEGER;

@@ -29,12 +29,21 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
   const clearFiles = useAttachmentDraft((s) => s.clear);
   const dismissRejected = useAttachmentDraft((s) => s.dismissRejected);
   const modelId = useChat((s) => s.draftModelId);
-  const model = useModels((s) => s.byId.get(modelId));
-  const issues = supportIssues(
-    pending.map((p) => p.kind),
-    model,
-    model ? shortName(model.name) : modelId,
-  );
+  const draftMode = useChat((s) => s.draftMode);
+  const draftLanes = useChat((s) => s.draftLanes);
+  const byId = useModels((s) => s.byId);
+  const compare = draftMode === 'compare';
+  // Gate against every lane's model; the first blocking issue names its lane.
+  const laneModelIds = compare ? draftLanes.map((l) => l.modelId) : [modelId];
+  const issues = laneModelIds.flatMap((id, i) => {
+    const m = byId.get(id);
+    const name = m ? shortName(m.name) : id;
+    return supportIssues(
+      pending.map((p) => p.kind),
+      m,
+      compare ? `${name} (lane ${i + 1})` : name,
+    );
+  });
   const blocked = issues.some((i) => i.level === 'block');
 
   useEffect(() => {
@@ -110,8 +119,14 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
               e.target.value = '';
             }}
           />
-          <ModelPicker onOpenSettings={onOpenSettings} />
-          <ThinkingLevel />
+          {compare ? (
+            <span className="text-muted-foreground px-2 text-xs">Sent to both models</span>
+          ) : (
+            <>
+              <ModelPicker onOpenSettings={onOpenSettings} />
+              <ThinkingLevel />
+            </>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <Button
               variant="ghost"

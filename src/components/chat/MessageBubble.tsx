@@ -8,14 +8,17 @@ import { Markdown } from './Markdown';
 import { ReasoningBlock } from './ReasoningBlock';
 import { MessageAttachments } from './MessageAttachments';
 import { useCopy } from '@/lib/useCopy';
-import { chatCost, formatCost, formatTokens, messageCost } from '@/lib/cost';
+import { cn } from '@/lib/utils';
+import { chatCost, formatCost, formatDuration, formatTokens, messageCost } from '@/lib/cost';
 
 interface Props {
   message: Message;
   isLast: boolean;
+  /** Compare mode: stats always visible, no conversation total, regenerate targets this lane. */
+  compare?: boolean;
 }
 
-export const MessageBubble = memo(function MessageBubble({ message, isLast }: Props) {
+export const MessageBubble = memo(function MessageBubble({ message, isLast, compare }: Props) {
   if (message.role === 'user') {
     return (
       <div className="flex flex-col items-end gap-2">
@@ -28,10 +31,10 @@ export const MessageBubble = memo(function MessageBubble({ message, isLast }: Pr
       </div>
     );
   }
-  return <AssistantBubble message={message} isLast={isLast} />;
+  return <AssistantBubble message={message} isLast={isLast} compare={compare} />;
 });
 
-function AssistantBubble({ message, isLast }: Props) {
+function AssistantBubble({ message, isLast, compare = false }: Props) {
   const streaming = useChat((s) => s.streaming);
   const regenerate = useChat((s) => s.regenerate);
   const model = useModels((s) => (message.modelId ? s.byId.get(message.modelId) : undefined));
@@ -41,7 +44,11 @@ function AssistantBubble({ message, isLast }: Props) {
   // object from a Zustand selector re-renders forever.
   const messages = useChat((s) => s.messages);
   const byId = useModels((s) => s.byId);
-  const total = useMemo(() => (isLast ? chatCost(messages, byId) : null), [isLast, messages, byId]);
+  const total = useMemo(
+    () => (isLast && !compare ? chatCost(messages, byId) : null),
+    [isLast, compare, messages, byId],
+  );
+  const speed = formatSpeed(message.firstTokenMs, message.totalMs);
   const { copied, copy } = useCopy();
 
   const showCursor = message.streaming && !message.content && !message.reasoning;
@@ -87,7 +94,12 @@ function AssistantBubble({ message, isLast }: Props) {
             </span>
           ) : null}
           {/* Hover: this message's model, tokens and cost. */}
-          <span className="hidden min-w-0 items-center truncate group-hover:flex">
+          <span
+            className={cn(
+              'min-w-0 items-center truncate',
+              compare ? 'flex' : 'hidden group-hover:flex',
+            )}
+          >
             <span className="truncate">{modelName}</span>
             {message.usage?.total_tokens ? (
               <span className="before:mx-1.5 before:content-['·']">
@@ -100,6 +112,14 @@ function AssistantBubble({ message, isLast }: Props) {
                 title={cost.exact ? 'Charged by OpenRouter' : 'Estimated from list price'}
               >
                 {formatCost(cost)}
+              </span>
+            ) : null}
+            {speed ? (
+              <span
+                className="before:mx-1.5 before:content-['·']"
+                title="Time to first token · total time. Includes OpenRouter routing."
+              >
+                {speed}
               </span>
             ) : null}
           </span>
@@ -120,7 +140,7 @@ function AssistantBubble({ message, isLast }: Props) {
                 size="icon-xs"
                 aria-label="Regenerate"
                 disabled={streaming}
-                onClick={() => void regenerate()}
+                onClick={() => void regenerate(compare ? (message.lane ?? 0) : undefined)}
               >
                 <RefreshCw className="size-3.5" />
               </Button>
@@ -130,4 +150,13 @@ function AssistantBubble({ message, isLast }: Props) {
       )}
     </div>
   );
+}
+
+function formatSpeed(first: number | null, total: number | null): string | null {
+  if (first === null && total === null) return null;
+  const fmt = formatDuration;
+  const parts: string[] = [];
+  if (first !== null) parts.push(`${fmt(first)} first`);
+  if (total !== null) parts.push(`${fmt(total)} total`);
+  return parts.join(' · ');
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Columns2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -13,13 +13,22 @@ interface Props {
   id: string;
   title: string;
   snippet?: string | null;
+  compare?: boolean;
   active: boolean;
   onOpen: () => void;
   onDelete: () => void;
   onRename: (title: string) => void;
 }
 
-export function ChatListItem({ title, snippet, active, onOpen, onDelete, onRename }: Props) {
+export function ChatListItem({
+  title,
+  snippet,
+  compare,
+  active,
+  onOpen,
+  onDelete,
+  onRename,
+}: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,7 +75,10 @@ export function ChatListItem({ title, snippet, active, onOpen, onDelete, onRenam
           onDoubleClick={() => setEditing(true)}
           className="min-w-0 flex-1 px-2.5 py-2 text-left"
         >
-          <div className="truncate">{title}</div>
+          <div className="flex items-center gap-1.5 truncate">
+            {compare ? <Columns2 className="text-muted-foreground size-3.5 shrink-0" /> : null}
+            <span className="truncate">{title}</span>
+          </div>
           {snippet ? (
             <div className="text-muted-foreground mt-0.5 truncate text-xs">{snippet}</div>
           ) : null}

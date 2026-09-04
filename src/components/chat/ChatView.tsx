@@ -2,12 +2,15 @@ import { useEffect, useRef } from 'react';
 import { useChat } from '@/store/chatStore';
 import { MessageList } from './MessageList';
 import { useGreeting } from '@/store/greetingStore';
+import { Columns2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export function ChatView() {
   const messages = useChat((s) => s.messages);
   const activeChatId = useChat((s) => s.activeChatId);
   const greeting = useGreeting((s) => s.current);
   const nextGreeting = useGreeting((s) => s.next);
+  const enterCompare = useChat((s) => s.enterCompareMode);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
 
@@ -51,6 +54,14 @@ export function ChatView() {
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">{greeting.heading}</h1>
         <p className="text-muted-foreground max-w-md text-sm">{greeting.subtext}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-4 gap-2 rounded-full"
+          onClick={enterCompare}
+        >
+          <Columns2 className="size-4" /> Try comparison mode
+        </Button>
       </div>
     );
   }

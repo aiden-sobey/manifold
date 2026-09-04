@@ -12,10 +12,17 @@ import { useChat } from '@/store/chatStore';
 import { useModels } from '@/store/modelStore';
 import type { ThinkingLevel as Level } from '@/types/domain';
 
-export function ThinkingLevel() {
-  const modelId = useChat((s) => s.draftModelId);
-  const level = useChat((s) => s.draftThinking);
-  const setLevel = useChat((s) => s.setDraftThinking);
+export function ThinkingLevel({ lane }: { lane?: number }) {
+  const modelId = useChat((s) =>
+    lane === undefined ? s.draftModelId : (s.draftLanes[lane]?.modelId ?? s.draftModelId),
+  );
+  const level = useChat((s) =>
+    lane === undefined ? s.draftThinking : (s.draftLanes[lane]?.thinking ?? s.draftThinking),
+  );
+  const setDraftThinking = useChat((s) => s.setDraftThinking);
+  const setLane = useChat((s) => s.setLane);
+  const setLevel = (l: Level) =>
+    lane === undefined ? setDraftThinking(l) : setLane(lane, { thinking: l });
   const model = useModels((s) => s.byId.get(modelId));
   const levels = availableLevels(model);
 

@@ -8,6 +8,7 @@ import { ChatHeader } from '@/components/chat/ChatHeader';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { AnalyticsView } from '@/components/analytics/AnalyticsView';
 import { DropOverlay } from '@/components/chat/DropOverlay';
+import { CompareView } from '@/components/chat/CompareView';
 import { useUi } from '@/store/uiStore';
 import { BALANCE_POLL_MS, useBalance } from '@/store/balanceStore';
 import { pickDefaultModel, useChat } from '@/store/chatStore';
@@ -22,6 +23,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const loaded = useChat((s) => s.loaded);
   const view = useUi((s) => s.view);
+  const compare = useChat((s) => s.draftMode === 'compare');
 
   useEffect(() => {
     void (async () => {
@@ -72,6 +74,11 @@ export default function App() {
       } else if (e.key === 'a' && e.shiftKey) {
         e.preventDefault();
         useUi.getState().toggleAnalytics();
+      } else if (e.key === 'm' && e.shiftKey) {
+        e.preventDefault();
+        const c = useChat.getState();
+        if (c.draftMode === 'compare') c.exitCompareMode();
+        else c.enterCompareMode();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -89,7 +96,7 @@ export default function App() {
         <main className="relative flex min-w-0 flex-1 flex-col">
           {view === 'analytics' ? (
             <AnalyticsView />
-          ) : (
+          ) : compare ? null : (
             <ChatHeader
               sidebarOpen={sidebarOpen}
               onToggleSidebar={() => setSidebarOpen((v) => !v)}
@@ -97,7 +104,14 @@ export default function App() {
           )}
           {view === 'analytics' ? null : loaded ? (
             <>
-              <ChatView />
+              {compare ? (
+                <CompareView
+                  sidebarOpen={sidebarOpen}
+                  onToggleSidebar={() => setSidebarOpen((v) => !v)}
+                />
+              ) : (
+                <ChatView />
+              )}
               <Composer onOpenSettings={() => setSettingsOpen(true)} />
             </>
           ) : (

@@ -28,6 +28,12 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/004_usage_ledger.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "comparison mode: chat mode, lanes, per-message lane and timing",
+            sql: include_str!("../migrations/005_compare_mode.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

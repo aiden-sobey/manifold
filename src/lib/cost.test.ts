@@ -1,4 +1,4 @@
-import { chatCost, formatCost, formatTokens, messageCost } from './cost';
+import { chatCost, formatCost, formatDuration, formatTokens, messageCost } from './cost';
 import type { Message } from '@/types/domain';
 import type { OpenRouterModel } from './openrouter/types';
 
@@ -16,6 +16,9 @@ const base: Message = {
   modelId: 'x/y',
   finishReason: 'stop',
   usage: null,
+  lane: null,
+  firstTokenMs: null,
+  totalMs: null,
   createdAt: 0,
 };
 
@@ -90,5 +93,14 @@ describe('formatTokens', () => {
     expect(formatTokens(1_250_000)).toBe('1.2M');
     expect(formatTokens(48_000_000)).toBe('48M');
     expect(formatTokens(2_700_000_000)).toBe('2.7B');
+  });
+});
+
+describe('formatDuration', () => {
+  it('scales ms, seconds, minutes', () => {
+    expect(formatDuration(850)).toBe('850ms');
+    expect(formatDuration(15_940)).toBe('15.9s');
+    expect(formatDuration(104_700)).toBe('1m 45s');
+    expect(formatDuration(120_000)).toBe('2m');
   });
 });

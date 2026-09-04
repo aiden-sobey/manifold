@@ -3,7 +3,9 @@ import type {
   Attachment,
   AttachmentKind,
   Chat,
+  ChatMode,
   FinishReason,
+  Lane,
   Message,
   SearchResult,
   ThinkingLevel,
@@ -30,6 +32,8 @@ interface ChatRow {
   title_source: TitleSource;
   model_id: string;
   thinking: ThinkingLevel;
+  mode: ChatMode;
+  lanes_json: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -42,6 +46,9 @@ interface MessageRow {
   model_id: string | null;
   finish_reason: FinishReason | null;
   usage_json: string | null;
+  lane: number | null;
+  first_token_ms: number | null;
+  total_ms: number | null;
   created_at: number;
 }
 
@@ -51,6 +58,8 @@ const toChat = (r: ChatRow): Chat => ({
   titleSource: r.title_source,
   modelId: r.model_id,
   thinking: r.thinking,
+  mode: r.mode ?? 'single',
+  lanes: r.lanes_json ? (JSON.parse(r.lanes_json) as Lane[]) : null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -64,6 +73,9 @@ const toMessage = (r: MessageRow): Message => ({
   modelId: r.model_id,
   finishReason: r.finish_reason,
   usage: r.usage_json ? (JSON.parse(r.usage_json) as Usage) : null,
+  lane: r.lane,
+  firstTokenMs: r.first_token_ms,
+  totalMs: r.total_ms,
   createdAt: r.created_at,
 });
 
@@ -76,14 +88,16 @@ export async function insertChat(chat: Chat): Promise<void> {
   await (
     await db()
   ).execute(
-    `INSERT INTO chats (id, title, title_source, model_id, thinking, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO chats (id, title, title_source, model_id, thinking, mode, lanes_json, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
       chat.id,
       chat.title,
       chat.titleSource,
       chat.modelId,
       chat.thinking,
+      chat.mode,
+      chat.lanes ? JSON.stringify(chat.lanes) : null,
       chat.createdAt,
       chat.updatedAt,
     ],
@@ -92,7 +106,9 @@ export async function insertChat(chat: Chat): Promise<void> {
 
 export async function updateChat(
   id: string,
-  patch: Partial<Pick<Chat, 'title' | 'titleSource' | 'modelId' | 'thinking' | 'updatedAt'>>,
+  patch: Partial<
+    Pick<Chat, 'title' | 'titleSource' | 'modelId' | 'thinking' | 'mode' | 'lanes' | 'updatedAt'>
+  >,
 ): Promise<void> {
   const sets: string[] = [];
   const args: unknown[] = [];
@@ -104,6 +120,9 @@ export async function updateChat(
   if (patch.titleSource !== undefined) push('title_source', patch.titleSource);
   if (patch.modelId !== undefined) push('model_id', patch.modelId);
   if (patch.thinking !== undefined) push('thinking', patch.thinking);
+  if (patch.mode !== undefined) push('mode', patch.mode);
+  if (patch.lanes !== undefined)
+    push('lanes_json', patch.lanes ? JSON.stringify(patch.lanes) : null);
   if (patch.updatedAt !== undefined) push('updated_at', patch.updatedAt);
   if (!sets.length) return;
   args.push(id);
@@ -219,8 +238,8 @@ export async function insertMessage(m: Message): Promise<void> {
   await (
     await db()
   ).execute(
-    `INSERT INTO messages (id, chat_id, role, content, reasoning, model_id, finish_reason, usage_json, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    `INSERT INTO messages (id, chat_id, role, content, reasoning, model_id, finish_reason, usage_json, lane, first_token_ms, total_ms, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       m.id,
       m.chatId,
@@ -230,6 +249,9 @@ export async function insertMessage(m: Message): Promise<void> {
       m.modelId,
       m.finishReason,
       m.usage ? JSON.stringify(m.usage) : null,
+      m.lane,
+      m.firstTokenMs,
+      m.totalMs,
       m.createdAt,
     ],
   );
@@ -237,6 +259,18 @@ export async function insertMessage(m: Message): Promise<void> {
 
 export async function deleteMessage(id: string): Promise<void> {
   await (await db()).execute('DELETE FROM messages WHERE id = $1', [id]);
+}
+
+/** Compare mode: drop one column's replies (used by "continue with this model"). */
+export async function deleteLaneMessages(chatId: string, lane: number): Promise<void> {
+  await (
+    await db()
+  ).execute('DELETE FROM messages WHERE chat_id = $1 AND lane = $2', [chatId, lane]);
+}
+
+/** Compare mode: after continuing with one lane, its replies become ordinary single-mode replies. */
+export async function clearLane(chatId: string): Promise<void> {
+  await (await db()).execute('UPDATE messages SET lane = NULL WHERE chat_id = $1', [chatId]);
 }
 
 /** Turns free text into an FTS5 prefix query: each token quoted and suffixed with `*`. */

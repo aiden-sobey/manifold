@@ -36,14 +36,25 @@ function formatContext(n?: number): string {
   return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : `${Math.round(n / 1000)}k`;
 }
 
-export function ModelPicker({ onOpenSettings }: { onOpenSettings: () => void }) {
+interface ModelPickerProps {
+  onOpenSettings: () => void;
+  /** Compare mode: bind to this lane instead of the single-model draft. */
+  lane?: number;
+}
+
+export function ModelPicker({ onOpenSettings, lane }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const models = useModels((s) => s.models);
   const loading = useModels((s) => s.loading);
   const refresh = useModels((s) => s.refresh);
-  const selectedId = useChat((s) => s.draftModelId);
-  const setModel = useChat((s) => s.setDraftModel);
+  const selectedId = useChat((s) =>
+    lane === undefined ? s.draftModelId : (s.draftLanes[lane]?.modelId ?? s.draftModelId),
+  );
+  const setDraftModel = useChat((s) => s.setDraftModel);
+  const setLane = useChat((s) => s.setLane);
+  const setModel = (id: string) =>
+    lane === undefined ? setDraftModel(id) : setLane(lane, { modelId: id });
   const favourites = useSettings((s) => s.settings.favouriteModelIds);
   const recents = useSettings((s) => s.settings.recentModelIds);
   const toggleFavourite = useSettings((s) => s.toggleFavourite);
