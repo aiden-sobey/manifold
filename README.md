@@ -59,7 +59,8 @@ platform layer (`src/lib/platform.ts`, `src-tauri/capabilities/desktop.json`) di
 1. Install [Android Studio](https://developer.android.com/studio). In **SDK Manager → SDK
    Tools** tick: Android SDK Build-Tools, Platform-Tools, Command-line Tools,
    **NDK (Side by side)**, Android Emulator. In **SDK Platforms** tick the latest API.
-2. **Device Manager → Create device**: Pixel 8, an **arm64-v8a** system image, name it `manifold`.
+2. **Device Manager → Create device**: any Pixel with an **arm64-v8a** system image. Note the
+   AVD name (`emulator -list-avds` shows it; the current one is `Pixel_9_Pro`).
 3. `rustup target add aarch64-linux-android` and `brew install openjdk@17` (Gradle needs JDK 17–21;
    Android Studio's bundled JDK is too new).
 4. `brew uninstall android-platform-tools` if installed, so `adb` comes from the SDK.
@@ -72,7 +73,7 @@ platform layer (`src/lib/platform.ts`, `src-tauri/capabilities/desktop.json`) di
 
 ```sh
 source scripts/android-env.sh
-emulator -avd manifold &     # or plug in a phone with USB debugging enabled
+emulator -avd Pixel_9_Pro &  # or plug in a phone with USB debugging enabled
 pnpm android:dev
 ```
 

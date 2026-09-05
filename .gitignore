@@ -34,3 +34,9 @@ src-tauri/gen/android/.gradle/
 src-tauri/gen/android/local.properties
 src-tauri/gen/android/keystore.properties
 *.jks
+
+# Apple signing / notarization secrets
+*.p8
+*.p12
+*.cer
+*.certSigningRequest
