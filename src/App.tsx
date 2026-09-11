@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { onBackButtonPress } from '@tauri-apps/api/app';
+import { invoke } from '@tauri-apps/api/core';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Sidebar } from '@/components/sidebar/Sidebar';
@@ -15,7 +17,8 @@ import { pickDefaultModel, useChat } from '@/store/chatStore';
 import { useModels } from '@/store/modelStore';
 import { useSettings } from '@/store/settingsStore';
 import { getApiKey } from '@/lib/keychain';
-import { isMobile } from '@/lib/platform';
+import { getAndroidBackAction } from '@/lib/androidBack';
+import { isAndroid, isMobile } from '@/lib/platform';
 import { MD_UP, matches } from '@/lib/useMediaQuery';
 import { toast } from 'sonner';
 
@@ -27,6 +30,11 @@ export default function App() {
   const loaded = useChat((s) => s.loaded);
   const view = useUi((s) => s.view);
   const compare = useChat((s) => s.draftMode === 'compare');
+  const backState = useRef({ settingsOpen, needsKey, sidebarOpen });
+
+  useLayoutEffect(() => {
+    backState.current = { settingsOpen, needsKey, sidebarOpen };
+  }, [settingsOpen, needsKey, sidebarOpen]);
 
   useEffect(() => {
     void (async () => {
@@ -52,6 +60,44 @@ export default function App() {
   useEffect(() => {
     const id = setInterval(() => void useBalance.getState().refresh(), BALANCE_POLL_MS);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!isAndroid) return;
+
+    let disposed = false;
+    let listener: Awaited<ReturnType<typeof onBackButtonPress>> | undefined;
+    void onBackButtonPress(() => {
+      const state = backState.current;
+      const action = getAndroidBackAction({
+        settingsOpen: state.settingsOpen,
+        settingsRequired: state.needsKey,
+        sidebarOpen: state.sidebarOpen,
+        narrowViewport: !matches(MD_UP),
+        analyticsOpen: useUi.getState().view === 'analytics',
+      });
+
+      if (action === 'close-settings') setSettingsOpen(false);
+      else if (action === 'close-sidebar') setSidebarOpen(false);
+      else if (action === 'close-analytics') useUi.getState().showChat();
+      else if (action === 'exit') {
+        void invoke('plugin:app|exit').catch((error: unknown) => {
+          console.error('Failed to exit after Android Back', error);
+        });
+      }
+    })
+      .then((registered) => {
+        if (disposed) void registered.unregister();
+        else listener = registered;
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to register Android Back handler', error);
+      });
+
+    return () => {
+      disposed = true;
+      if (listener) void listener.unregister();
+    };
   }, []);
 
   useEffect(() => {
