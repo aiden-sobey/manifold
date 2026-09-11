@@ -10,6 +10,7 @@ import { MessageAttachments } from './MessageAttachments';
 import { useCopy } from '@/lib/useCopy';
 import { cn } from '@/lib/utils';
 import { chatCost, formatCost, formatDuration, formatTokens, messageCost } from '@/lib/cost';
+import { isAndroid } from '@/lib/platform';
 
 interface Props {
   message: Message;
@@ -83,7 +84,7 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
           {/* Default: running total for the whole conversation, on the last message only. */}
           {total ? (
             <span
-              className="truncate group-hover:hidden pointer-coarse:hidden"
+              className={cn('truncate', !isAndroid && 'group-hover:hidden pointer-coarse:hidden')}
               title={
                 total.exact
                   ? 'Total charged by OpenRouter for this conversation'
@@ -97,7 +98,11 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
           <span
             className={cn(
               'min-w-0 items-center truncate',
-              compare ? 'flex' : 'hidden group-hover:flex pointer-coarse:flex',
+              compare
+                ? 'flex'
+                : isAndroid && total
+                  ? 'hidden'
+                  : 'hidden group-hover:flex pointer-coarse:flex',
             )}
           >
             <span className="truncate">{modelName}</span>

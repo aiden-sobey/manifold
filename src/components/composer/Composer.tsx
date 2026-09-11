@@ -5,7 +5,7 @@ import { useAttachmentDraft } from '@/store/attachmentDraftStore';
 import { useModels } from '@/store/modelStore';
 import { supportIssues } from '@/lib/attachments/support';
 import { shortName } from '@/lib/modelName';
-import { isMobile } from '@/lib/platform';
+import { isAndroid, isMobile } from '@/lib/platform';
 import { AttachmentChips } from './AttachmentChips';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -70,6 +70,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
     if (!canSend || streaming) return;
     const t = text;
     const files = pending;
+    if (isAndroid) ref.current?.blur();
     setText('');
     clearFiles();
     void send(t, files);

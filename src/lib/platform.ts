@@ -8,7 +8,8 @@
  */
 const platform = import.meta.env.TAURI_ENV_PLATFORM ?? 'darwin';
 
-export const isMobile = platform === 'android' || platform === 'ios';
+export const isAndroid = platform === 'android';
+export const isMobile = isAndroid || platform === 'ios';
 export const isDesktop = !isMobile;
 /** macOS desktop draws traffic lights over our title strip and needs a spacer for them. */
 export const isMacDesktop = platform === 'darwin';

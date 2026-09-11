@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { BarChart3, PanelLeftClose, Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -7,7 +9,8 @@ import { ChatListItem } from './ChatListItem';
 import { SearchInput } from './SearchInput';
 import { cn } from '@/lib/utils';
 import { useWindowDrag } from '@/lib/useWindowDrag';
-import { isMacDesktop } from '@/lib/platform';
+import { isAndroid, isMacDesktop } from '@/lib/platform';
+import { isClosingSwipe } from '@/lib/swipe';
 import { MD_UP, useMediaQuery } from '@/lib/useMediaQuery';
 import { useUi } from '@/store/uiStore';
 import { BalanceBadge } from './BalanceBadge';
@@ -33,6 +36,24 @@ export function Sidebar({ open, onToggle, onOpenSettings }: Props) {
   const view = useUi((s) => s.view);
   const showAnalytics = useUi((s) => s.showAnalytics);
   const mdUp = useMediaQuery(MD_UP);
+  const swipeStart = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!isAndroid || mdUp || !open || !event.isPrimary || event.pointerType === 'mouse') return;
+    swipeStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const finishSwipe = (event: ReactPointerEvent<HTMLElement>) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || start.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (open && isClosingSwipe(start, { x: event.clientX, y: event.clientY })) onToggle();
+  };
+  const cancelSwipe = (event: ReactPointerEvent<HTMLElement>) => {
+    if (swipeStart.current?.pointerId === event.pointerId) swipeStart.current = null;
+  };
   // Narrow screens: the sidebar is an overlay drawer, and picking anything closes it.
   const closeIfDrawer = () => {
     if (!mdUp && open) onToggle();
@@ -52,6 +73,9 @@ export function Sidebar({ open, onToggle, onOpenSettings }: Props) {
         />
       ) : null}
       <aside
+        onPointerDown={onPointerDown}
+        onPointerUp={finishSwipe}
+        onPointerCancel={cancelSwipe}
         className={cn(
           'bg-sidebar text-sidebar-foreground border-sidebar-border flex h-full shrink-0 flex-col border-r',
           // Drawer below md, in-flow column at md and up.
