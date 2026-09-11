@@ -54,7 +54,9 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
   }, [rejected, dismissRejected]);
 
   useEffect(() => {
-    ref.current?.focus();
+    // Opening or creating a chat must not summon the Android IME. Mobile users can tap the
+    // composer explicitly; desktop keeps its existing autofocus workflow.
+    if (!isAndroid) ref.current?.focus();
   }, [activeChatId]);
 
   useEffect(() => {
