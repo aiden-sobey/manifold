@@ -40,3 +40,6 @@ src-tauri/gen/android/keystore.properties
 *.p12
 *.cer
 *.certSigningRequest
+
+# PI
+.pi/
