@@ -162,7 +162,7 @@ export function ModelTable({ summaries, seriesIds, nameOf, onExport, loading }: 
                       key={`sys-${c.modelId}`}
                       r={c}
                       color={null}
-                      name={nameOf(c.modelId)}
+                      name={`${c.purpose === 'transcription' ? 'Voice · ' : c.purpose === 'title' ? 'Title · ' : c.purpose === 'greeting' ? 'Greeting · ' : ''}${nameOf(c.modelId)}`}
                       icon={<ProviderIcon modelId={c.modelId} />}
                       child
                     />
@@ -178,8 +178,16 @@ export function ModelTable({ summaries, seriesIds, nameOf, onExport, loading }: 
                 <td className="px-3 py-2 text-right tabular-nums">
                   {formatCost({ cost: totals.spend, exact: !totals.approx })}
                 </td>
-                <TokenCell tokens={totals.promptTokens} cost={totals.inputCostEst} />
-                <TokenCell tokens={totals.completionTokens} cost={totals.outputCostEst} />
+                <TokenCell
+                  tokens={totals.promptTokens}
+                  cost={totals.inputCostEst}
+                  rate={totals.inputCostEst === null ? undefined : 'input'}
+                />
+                <TokenCell
+                  tokens={totals.completionTokens}
+                  cost={totals.outputCostEst}
+                  rate={totals.outputCostEst === null ? undefined : 'output'}
+                />
                 <td className="px-3 py-2 text-right tabular-nums">{totals.replies}</td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {formatCost({
@@ -313,14 +321,14 @@ function Row({
       <TokenCell
         tokens={r.promptTokens}
         cost={r.inputCostEst}
-        rate={pricing?.prompt}
-        kind="input"
+        rate={r.purpose === 'transcription' ? undefined : pricing?.prompt}
+        kind={r.purpose === 'transcription' ? undefined : 'input'}
       />
       <TokenCell
         tokens={r.completionTokens}
         cost={r.outputCostEst}
-        rate={pricing?.completion}
-        kind="output"
+        rate={r.purpose === 'transcription' ? undefined : pricing?.completion}
+        kind={r.purpose === 'transcription' ? undefined : 'output'}
       />
       <td className="px-3 py-2 text-right tabular-nums">{r.replies}</td>
       <td className="px-3 py-2 text-right tabular-nums">

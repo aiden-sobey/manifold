@@ -20,6 +20,7 @@ const row = (day: string, model: string, cost: number | null, tokens: number, ex
   ({
     period: day.includes('T') ? day : `${day}T00`,
     source: 'chat',
+    purpose: null,
     model_id: model,
     replies: 1,
     cost,
@@ -158,6 +159,31 @@ describe('system usage', () => {
     row('2026-09-01', 'openai/gpt-oss-120b', 0.01, 100, { source: 'system' }),
     row('2026-09-02', 'google/flash', 0.02, 200, { source: 'system' }),
   ];
+  it('does not estimate transcription cost and keeps system call purposes separate', () => {
+    const s = modelSummaries(
+      [
+        row('2026-09-01', 'x/priced', null, 1000, {
+          source: 'system',
+          purpose: 'transcription',
+        }),
+        row('2026-09-01', 'x/priced', null, 1000, {
+          source: 'system',
+          purpose: 'title',
+        }),
+      ],
+      byId,
+    );
+    const system = s.find((m) => m.modelId === SYSTEM_KEY);
+    const transcript = system?.children?.find((m) => m.purpose === 'transcription');
+    const title = system?.children?.find((m) => m.purpose === 'title');
+    expect(transcript?.spend).toBe(0);
+    expect(transcript?.inputCostEst).toBeNull();
+    expect(transcript?.outputCostEst).toBeNull();
+    expect(title?.spend).toBeCloseTo(0.001);
+    const combined = s.find((m) => m.modelId === SYSTEM_KEY);
+    expect(combined?.spend).toBeCloseTo(0.001);
+    expect(combined?.approx).toBe(true);
+  });
   it('consolidates system calls into one row with children', () => {
     const s = modelSummaries(rows, byId);
     expect(s.map((m) => m.modelId)).toEqual(['a/1', SYSTEM_KEY]);

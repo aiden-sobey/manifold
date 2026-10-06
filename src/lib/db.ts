@@ -329,6 +329,7 @@ export type UsageSource = 'chat' | 'system';
 export interface DailyModelRow {
   period: string; // YYYY-MM-DDTHH, local time (hour grain; coarser buckets are built in TS)
   source: UsageSource;
+  purpose: string | null;
   model_id: string | null;
   replies: number;
   cost: number | null; // sum of charged cost over rows that have one
@@ -341,11 +342,12 @@ export interface DailyModelRow {
 }
 
 // Analytics read from the ledger, not from messages, so deleting a chat never erases spend.
-const USAGE_UNION = `SELECT source, model_id, usage_json, created_at FROM usage_ledger`;
+const USAGE_UNION = `SELECT source, purpose, model_id, usage_json, created_at FROM usage_ledger`;
 
 const SPEND_SELECT = `
   SELECT strftime('%Y-%m-%dT%H', created_at / 1000, 'unixepoch', 'localtime') AS period,
          source,
+         purpose,
          model_id,
          COUNT(*) AS replies,
          SUM(json_extract(usage_json, '$.cost')) AS cost,
@@ -363,11 +365,11 @@ export async function spendByDayAndModel(sinceMs: number | null): Promise<DailyM
   const d = await db();
   if (sinceMs === null) {
     return d.select<DailyModelRow[]>(
-      `${SPEND_SELECT} GROUP BY period, source, model_id ORDER BY period ASC`,
+      `${SPEND_SELECT} GROUP BY period, source, purpose, model_id ORDER BY period ASC`,
     );
   }
   return d.select<DailyModelRow[]>(
-    `${SPEND_SELECT} WHERE created_at >= $1 GROUP BY period, source, model_id ORDER BY period ASC`,
+    `${SPEND_SELECT} WHERE created_at >= $1 GROUP BY period, source, purpose, model_id ORDER BY period ASC`,
     [sinceMs],
   );
 }
@@ -376,7 +378,7 @@ export interface UsageEntry {
   /** Message id for chat replies so re-recording is idempotent; any unique id for system calls. */
   id: string;
   source: UsageSource;
-  purpose?: 'title' | 'greeting';
+  purpose?: 'title' | 'greeting' | 'transcription';
   modelId: string;
   chatId?: string;
   usage: Record<string, unknown>;
@@ -402,7 +404,7 @@ export async function insertUsage(entry: UsageEntry): Promise<void> {
 }
 
 export function insertSystemUsage(entry: {
-  purpose: 'title' | 'greeting';
+  purpose: 'title' | 'greeting' | 'transcription';
   modelId: string;
   usage: Record<string, unknown>;
 }): Promise<void> {
@@ -426,7 +428,15 @@ export async function spendTotals(): Promise<SpendTotalsRow> {
             SUM(json_extract(usage_json, '$.total_tokens')) AS total_tokens,
             SUM(CASE WHEN json_extract(usage_json, '$.cost') IS NULL THEN 1 ELSE 0 END) AS missing_cost,
             MIN(created_at) AS first_at
-     FROM messages WHERE role = 'assistant' AND usage_json IS NOT NULL`,
+     FROM usage_ledger`,
   );
-  return rows[0] ?? { replies: 0, cost: 0, total_tokens: 0, missing_cost: 0, first_at: null };
+  return (
+    rows[0] ?? {
+      replies: 0,
+      cost: 0,
+      total_tokens: 0,
+      missing_cost: 0,
+      first_at: null,
+    }
+  );
 }

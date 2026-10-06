@@ -35,6 +35,8 @@ export interface ModelSummary {
   /** List-price estimates of the input/output split. Spend is the charged total. */
   inputCostEst: number | null;
   outputCostEst: number | null;
+  /** System ledger purpose, e.g. title generation or transcription. */
+  purpose?: string | null;
   /** For the consolidated System row: the per-model breakdown. */
   children?: ModelSummary[];
   replies: number;
@@ -150,7 +152,7 @@ export function rangeStart(
 // ---- cost ----
 
 function estimateMissing(row: DailyModelRow, model: OpenRouterModel | undefined): number | null {
-  if (!row.missing_cost) return 0;
+  if (!row.missing_cost || row.purpose === 'transcription') return 0;
   const p = Number(model?.pricing?.prompt ?? NaN);
   const c = Number(model?.pricing?.completion ?? NaN);
   if (!Number.isFinite(p) || !Number.isFinite(c)) return null;
@@ -164,7 +166,10 @@ export function rowSpend(
 ): { spend: number; approx: boolean } {
   const charged = row.cost ?? 0;
   const est = estimateMissing(row, row.model_id ? byId.get(row.model_id) : undefined);
-  return { spend: charged + (est ?? 0), approx: row.missing_cost > 0 };
+  return {
+    spend: charged + (est ?? 0),
+    approx: row.missing_cost > 0 && row.purpose !== 'transcription',
+  };
 }
 
 // ---- aggregation ----
@@ -233,8 +238,8 @@ export function modelSummaries(
   const chat = new Map<string, ModelSummary>();
   const system = new Map<string, ModelSummary>();
   const systemTotal = emptySummary(SYSTEM_KEY, NaN, NaN);
-  systemTotal.inputCostEst = 0;
-  systemTotal.outputCostEst = 0;
+  systemTotal.inputCostEst = null;
+  systemTotal.outputCostEst = null;
 
   for (const r of rows) {
     const id = r.model_id ?? 'unknown';
@@ -243,15 +248,38 @@ export function modelSummaries(
     const cPrice = Number(model?.pricing?.completion ?? NaN);
     const { spend, approx } = rowSpend(r, byId);
     const bucket = r.source === 'system' ? system : chat;
-    const cur = bucket.get(id) ?? emptySummary(id, pPrice, cPrice);
-    addRow(cur, r, spend, approx, pPrice, cPrice);
-    bucket.set(id, cur);
-    if (r.source === 'system') addRow(systemTotal, r, spend, approx, pPrice, cPrice);
+    const key = r.source === 'system' ? `${id}:${r.purpose ?? ''}` : id;
+    const cur = bucket.get(key) ?? { ...emptySummary(id, pPrice, cPrice), purpose: r.purpose };
+    if (r.purpose === 'transcription') {
+      cur.inputCostEst = null;
+      cur.outputCostEst = null;
+    }
+    addRow(
+      cur,
+      r,
+      spend,
+      approx,
+      r.purpose === 'transcription' ? NaN : pPrice,
+      r.purpose === 'transcription' ? NaN : cPrice,
+    );
+    bucket.set(key, cur);
+    if (r.source === 'system') {
+      systemTotal.tokens += r.total_tokens ?? 0;
+      systemTotal.promptTokens += r.prompt_tokens ?? 0;
+      systemTotal.completionTokens += r.completion_tokens ?? 0;
+      systemTotal.replies += r.replies;
+      systemTotal.spend += spend;
+      systemTotal.approx ||= approx;
+    }
   }
 
   const list = [...chat.values()];
   if (system.size > 0) {
-    systemTotal.children = [...system.values()];
+    const children = [...system.values()];
+    const knownCost = children.reduce((sum, child) => sum + child.spend, 0);
+    systemTotal.spend = knownCost;
+    systemTotal.avgPerReply = systemTotal.replies ? knownCost / systemTotal.replies : 0;
+    systemTotal.children = children;
     list.push(systemTotal);
   }
   const total = list.reduce((s, m) => s + m.spend, 0);

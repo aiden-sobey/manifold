@@ -22,9 +22,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getApiKey, getManagementKey, setApiKey, setManagementKey } from '@/lib/keychain';
-import { getCredits } from '@/lib/openrouter/client';
+import { getCredits, listTranscriptionModels } from '@/lib/openrouter/client';
 import { useBalance } from '@/store/balanceStore';
 import { checkApiKey } from '@/lib/openrouter/client';
+import type { OpenRouterModel } from '@/lib/openrouter/types';
 import { useModels } from '@/store/modelStore';
 import { useSettings, type SendKey } from '@/store/settingsStore';
 import { pickDefaultModel, useChat } from '@/store/chatStore';
@@ -49,10 +50,18 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
   const settings = useSettings((s) => s.settings);
   const update = useSettings((s) => s.update);
   const byId = useModels((s) => s.byId);
+  const [transcriptionModels, setTranscriptionModels] = useState<OpenRouterModel[]>([]);
+  const [transcriptionModelsError, setTranscriptionModelsError] = useState(false);
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     if (!open) return;
+    void listTranscriptionModels()
+      .then((models) => {
+        setTranscriptionModels(models.sort((a, b) => a.name.localeCompare(b.name)));
+        setTranscriptionModelsError(false);
+      })
+      .catch(() => setTranscriptionModelsError(true));
     void getApiKey().then((k) => {
       setHasKey(Boolean(k));
       setKey('');
@@ -239,6 +248,23 @@ export function SettingsDialog({ open, required, onOpenChange, onKeySaved }: Pro
                 />
 
                 <div>
+                  <div className="font-medium">Transcription model</div>
+                  <div className="text-muted-foreground text-xs">
+                    Used for voice dictation; cost is recorded from OpenRouter usage.
+                    {transcriptionModelsError ? ' Could not load available models.' : ''}
+                  </div>
+                </div>
+                <ModelSelect
+                  value={settings.transcriptionModelId}
+                  label={
+                    transcriptionModels.find((m) => m.id === settings.transcriptionModelId)?.name ??
+                    settings.transcriptionModelId
+                  }
+                  models={transcriptionModels}
+                  onChange={(id) => void update({ transcriptionModelId: id })}
+                />
+
+                <div>
                   <div className="font-medium">Title model</div>
                   <div className="text-muted-foreground text-xs">
                     Cheap model used to name chats automatically.
@@ -352,13 +378,16 @@ function ModelSelect({
   value,
   label,
   onChange,
+  models: suppliedModels,
 }: {
   value: string;
   label: string;
   onChange: (id: string) => void;
+  models?: OpenRouterModel[];
 }) {
   const [open, setOpen] = useState(false);
-  const models = useModels((s) => s.models);
+  const cachedModels = useModels((s) => s.models);
+  const models = suppliedModels ?? cachedModels;
   return (
     <ModelSelectPopover
       open={open}
@@ -379,7 +408,6 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import type { OpenRouterModel } from '@/lib/openrouter/types';
 
 function ModelSelectPopover({
   open,

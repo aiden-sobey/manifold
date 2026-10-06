@@ -65,7 +65,7 @@ export function StatTiles({ totals, tiles, loading }: Props) {
         spend={totals?.cost ?? 0}
         tokens={totals?.total_tokens ?? 0}
         replies={totals?.replies ?? 0}
-        approx={(totals?.missing_cost ?? 0) > 0}
+        approx={Boolean(totals?.missing_cost)}
         sub={totals?.first_at ? `since ${fmtSince.format(new Date(totals.first_at))}` : undefined}
       />
       <Tile label="Today" {...tiles.today} />

@@ -6,6 +6,7 @@ export type SendKey = 'enter' | 'mod-enter';
 
 export interface Settings {
   defaultModelId: string;
+  transcriptionModelId: string;
   defaultThinking: ThinkingLevel;
   titleModelId: string;
   autoTitle: boolean;
@@ -27,6 +28,7 @@ export const DEFAULT_FAVOURITES = [
 
 const DEFAULTS: Settings = {
   defaultModelId: 'anthropic/claude-sonnet-4.5',
+  transcriptionModelId: 'openai/whisper-large-v3-turbo',
   defaultThinking: 'medium',
   titleModelId: 'openai/gpt-oss-120b',
   autoTitle: true,

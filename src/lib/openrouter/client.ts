@@ -97,6 +97,61 @@ export async function listModels(): Promise<OpenRouterModel[]> {
   return json.data;
 }
 
+export async function listTranscriptionModels(): Promise<OpenRouterModel[]> {
+  const res = await fetch(`${OPENROUTER_BASE}/models?output_modalities=transcription`);
+  if (!res.ok) throw new OpenRouterError(friendlyHttpError(res.status), res.status);
+  const json = (await res.json()) as { data: OpenRouterModel[] };
+  return json.data;
+}
+
+export interface TranscriptionResult {
+  text: string;
+  modelId: string;
+  usage: Record<string, unknown>;
+}
+
+function numericUsage(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+export async function transcribeAudio(
+  apiKey: string,
+  model: string,
+  audio: Blob,
+  format: string,
+  signal?: AbortSignal,
+): Promise<TranscriptionResult> {
+  const bytes = new Uint8Array(await audio.arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  const data = btoa(binary);
+  const res = await fetch(`${OPENROUTER_BASE}/audio/transcriptions`, {
+    method: 'POST',
+    headers: headers(apiKey),
+    body: JSON.stringify({ model, input_audio: { data, format } }),
+    signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new OpenRouterError(friendlyHttpError(res.status, text), res.status);
+  }
+
+  const json = (await res.json()) as { text?: unknown; model?: unknown; usage?: unknown };
+  if (typeof json.text !== 'string') throw new OpenRouterError('OpenRouter returned no transcript');
+  const usage: Record<string, unknown> =
+    json.usage && typeof json.usage === 'object' ? { ...json.usage } : {};
+  if (usage.prompt_tokens === undefined && numericUsage(usage.input_tokens)) {
+    usage.prompt_tokens = usage.input_tokens;
+  }
+  if (usage.completion_tokens === undefined && numericUsage(usage.output_tokens)) {
+    usage.completion_tokens = usage.output_tokens;
+  }
+  if (!numericUsage(usage.cost)) delete usage.cost;
+  return { text: json.text, modelId: typeof json.model === 'string' ? json.model : model, usage };
+}
+
 export interface KeyInfo {
   label?: string;
   usage?: number;
