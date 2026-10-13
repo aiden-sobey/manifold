@@ -1,23 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FileText, FileType2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { formatBytes } from '@/lib/attachments/kinds';
-import { attachmentSrc } from '@/lib/attachments/storage';
+import { useAttachmentSrc as useSrc } from '@/lib/useAttachmentSrc';
 import type { Attachment } from '@/types/domain';
-
-function useSrc(relPath: string): string | null {
-  const [src, setSrc] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    void attachmentSrc(relPath).then((u) => {
-      if (alive) setSrc(u);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [relPath]);
-  return src;
-}
 
 function ImageThumb({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
   const src = useSrc(a.relPath);

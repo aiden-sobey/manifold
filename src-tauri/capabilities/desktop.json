@@ -1,13 +1,30 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "desktop",
-  "description": "Desktop-only: native window drag/maximise and the save dialog + home-directory writes used by CSV export",
+  "description": "Desktop-only: native window drag/maximise and the save dialog + home-directory writes used by CSV export and image saving",
   "windows": ["main"],
   "platforms": ["macOS", "windows", "linux"],
   "permissions": [
     "core:window:allow-toggle-maximize",
     "core:window:allow-start-dragging",
     "dialog:allow-save",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        },
+        {
+          "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$DOCUMENT/**"
+        },
+        {
+          "path": "$DESKTOP/**"
+        }
+      ]
+    },
     {
       "identifier": "fs:allow-write-text-file",
       "allow": [

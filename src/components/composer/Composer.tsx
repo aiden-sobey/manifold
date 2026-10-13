@@ -7,6 +7,7 @@ import { supportIssues } from '@/lib/attachments/support';
 import { getApiKey } from '@/lib/keychain';
 import { insertSystemUsage } from '@/lib/db';
 import { transcribeAudio } from '@/lib/openrouter/client';
+import { imageSupportIssues } from '@/lib/openrouter/images';
 import { supportsTools } from '@/lib/openrouter/webTools';
 import { appendTranscript, audioFormat } from '@/lib/transcription';
 import { shortName } from '@/lib/modelName';
@@ -15,7 +16,11 @@ import { AttachmentChips } from './AttachmentChips';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useChat } from '@/store/chatStore';
+import { useImageModels } from '@/store/imageModelStore';
 import { useSettings } from '@/store/settingsStore';
+import { ImageModelPicker } from './ImageModelPicker';
+import { ImageOptions } from './ImageOptions';
+import { ImageToggle } from './ImageToggle';
 import { ModelPicker } from './ModelPicker';
 import { ThinkingLevel } from './ThinkingLevel';
 import { WebToggle } from './WebToggle';
@@ -55,19 +60,28 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
   const draftLanes = useChat((s) => s.draftLanes);
   const byId = useModels((s) => s.byId);
   const compare = draftMode === 'compare';
+  const imageMode = useChat((s) => s.draftKind === 'image') && !compare;
+  const imageModelId = useChat((s) => s.draftImageModelId);
+  const imageModel = useImageModels((s) => s.byId.get(imageModelId));
   // Gate against every lane's model; the first blocking issue names its lane.
   const laneModelIds = compare ? draftLanes.map((l) => l.modelId) : [modelId];
-  const issues = laneModelIds.flatMap((id, i) => {
-    const m = byId.get(id);
-    const name = m ? shortName(m.name) : id;
-    return supportIssues(
-      pending.map((p) => p.kind),
-      m,
-      compare ? `${name} (lane ${i + 1})` : name,
-    );
-  });
+  const issues = imageMode
+    ? imageSupportIssues(
+        pending.map((p) => p.kind),
+        imageModel,
+        imageModel ? shortName(imageModel.name) : imageModelId,
+      )
+    : laneModelIds.flatMap((id, i) => {
+        const m = byId.get(id);
+        const name = m ? shortName(m.name) : id;
+        return supportIssues(
+          pending.map((p) => p.kind),
+          m,
+          compare ? `${name} (lane ${i + 1})` : name,
+        );
+      });
   const blocked = issues.some((i) => i.level === 'block');
-  const webCapable = laneModelIds.some((id) => supportsTools(byId.get(id)));
+  const webCapable = !imageMode && laneModelIds.some((id) => supportsTools(byId.get(id)));
 
   useEffect(() => {
     if (rejected.length === 0) return;
@@ -260,7 +274,8 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
     }
   };
 
-  const canSend = (text.trim().length > 0 || pending.length > 0) && !blocked;
+  // Image models generate from a prompt, so references alone can't be sent.
+  const canSend = (text.trim().length > 0 || (pending.length > 0 && !imageMode)) && !blocked;
 
   const submit = () => {
     if (!canSend || streaming) return;
@@ -302,7 +317,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder="Message…"
+          placeholder={imageMode ? 'Describe an image…' : 'Message…'}
           rows={1}
           className="max-h-[280px] min-h-[48px] resize-none rounded-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-[15px] shadow-none focus-visible:ring-0 md:min-h-[72px] dark:bg-transparent"
         />
@@ -326,6 +341,11 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
           />
           {compare ? (
             <span className="text-muted-foreground px-2 text-xs">Sent to both models</span>
+          ) : imageMode ? (
+            <>
+              <ImageModelPicker />
+              <ImageOptions />
+            </>
           ) : (
             <>
               <ModelPicker onOpenSettings={onOpenSettings} />
@@ -333,6 +353,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
             </>
           )}
           {webCapable ? <WebToggle /> : null}
+          {compare ? null : <ImageToggle />}
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {recording ? (
               <span role="status" aria-label="Recording" className="inline-flex items-center">

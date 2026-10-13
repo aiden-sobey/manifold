@@ -2,6 +2,10 @@ import { readSSE } from './sse';
 import type {
   ChatCompletionRequest,
   CompletionResponse,
+  ImageModel,
+  ImagePriceLine,
+  ImageRequest,
+  ImageResponse,
   OpenRouterModel,
   StreamEvent,
 } from './types';
@@ -28,26 +32,43 @@ function headers(apiKey: string): HeadersInit {
   };
 }
 
+interface ErrorBody {
+  error?: { message?: string; metadata?: { provider_name?: string; raw?: unknown } };
+}
+
+/**
+ * OpenRouter's explanation from an error body. Upstream failures often say only "Provider returned
+ * error", with the provider's own message in metadata.raw, so that and the provider name are added.
+ */
+function errorDetail(body?: string): string {
+  if (!body) return '';
+  let parsed: ErrorBody;
+  try {
+    parsed = JSON.parse(body) as ErrorBody;
+  } catch {
+    return body.slice(0, 200);
+  }
+  const { message = '', metadata } = parsed.error ?? {};
+  const raw =
+    typeof metadata?.raw === 'string' ? metadata.raw : JSON.stringify(metadata?.raw ?? '');
+  const parts = [message, raw && raw !== '""' && !message.includes(raw) ? raw.slice(0, 300) : ''];
+  const provider = metadata?.provider_name;
+  return parts.filter(Boolean).join(': ') + (provider ? ` (${provider})` : '');
+}
+
 export function friendlyHttpError(status: number, body?: string): string {
+  const detail = errorDetail(body);
   switch (status) {
     case 401:
       return 'OpenRouter rejected the API key. Open Settings and check it.';
     case 402:
       return 'Out of OpenRouter credits.';
     case 429:
-      return 'Rate limited by OpenRouter. Try again in a moment.';
-    default: {
-      let detail = '';
-      if (body) {
-        try {
-          const parsed = JSON.parse(body) as { error?: { message?: string } };
-          detail = parsed.error?.message ?? '';
-        } catch {
-          detail = body.slice(0, 200);
-        }
-      }
+      return detail
+        ? `Rate limited: ${detail}`
+        : 'Rate limited by OpenRouter. Try again in a moment.';
+    default:
       return `OpenRouter request failed (${status})${detail ? `: ${detail}` : ''}`;
-    }
   }
 }
 
@@ -102,6 +123,39 @@ export async function listTranscriptionModels(): Promise<OpenRouterModel[]> {
   if (!res.ok) throw new OpenRouterError(friendlyHttpError(res.status), res.status);
   const json = (await res.json()) as { data: OpenRouterModel[] };
   return json.data;
+}
+
+export async function listImageModels(): Promise<ImageModel[]> {
+  const res = await fetch(`${OPENROUTER_BASE}/images/models`);
+  if (!res.ok) throw new OpenRouterError(friendlyHttpError(res.status), res.status);
+  const json = (await res.json()) as { data: ImageModel[] };
+  return json.data;
+}
+
+/** Prices for one image model. The catalog leaves them out; each model's endpoints list has them. */
+export async function imageModelPrices(modelId: string): Promise<ImagePriceLine[]> {
+  const res = await fetch(`${OPENROUTER_BASE}/images/models/${modelId}/endpoints`);
+  if (!res.ok) throw new OpenRouterError(friendlyHttpError(res.status), res.status);
+  const json = (await res.json()) as { endpoints?: Array<{ pricing?: ImagePriceLine[] }> };
+  return json.endpoints?.[0]?.pricing ?? [];
+}
+
+export async function generateImages(
+  apiKey: string,
+  request: ImageRequest,
+  signal?: AbortSignal,
+): Promise<ImageResponse> {
+  const res = await fetch(`${OPENROUTER_BASE}/images`, {
+    method: 'POST',
+    headers: headers(apiKey),
+    body: JSON.stringify(request),
+    signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new OpenRouterError(friendlyHttpError(res.status, text), res.status);
+  }
+  return (await res.json()) as ImageResponse;
 }
 
 export interface TranscriptionResult {

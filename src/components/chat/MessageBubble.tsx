@@ -2,8 +2,10 @@ import { memo, useMemo } from 'react';
 import { AlertCircle, Check, Copy, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/store/chatStore';
+import { useImageModels } from '@/store/imageModelStore';
 import { useModels } from '@/store/modelStore';
 import type { Message } from '@/types/domain';
+import { GeneratedImages, PendingImages } from './GeneratedImages';
 import { Markdown } from './Markdown';
 import { ReasoningBlock } from './ReasoningBlock';
 import { SourcesBlock } from './SourcesBlock';
@@ -40,7 +42,10 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
   const streaming = useChat((s) => s.streaming);
   const regenerate = useChat((s) => s.regenerate);
   const model = useModels((s) => (message.modelId ? s.byId.get(message.modelId) : undefined));
-  const modelName = model?.name ?? message.modelId;
+  const imageModelName = useImageModels((s) =>
+    message.modelId ? s.byId.get(message.modelId)?.name : undefined,
+  );
+  const modelName = model?.name ?? imageModelName ?? message.modelId;
   const cost = messageCost(message, model);
   // Select stable references only; derive the total with useMemo. Returning a fresh
   // object from a Zustand selector re-renders forever.
@@ -53,7 +58,8 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
   const speed = formatSpeed(message.firstTokenMs, message.totalMs);
   const { copied, copy } = useCopy();
 
-  const showCursor = message.streaming && !message.content && !message.reasoning;
+  const showCursor =
+    message.streaming && !message.content && !message.reasoning && !message.pendingImages;
   const searches = message.usage?.server_tool_use_details?.web_search_requests ?? 0;
 
   return (
@@ -70,6 +76,11 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
       ) : showCursor ? (
         <span className="bg-foreground/70 animate-blink inline-block h-4 w-2 rounded-sm" />
       ) : null}
+
+      {message.streaming && message.pendingImages ? (
+        <PendingImages count={message.pendingImages} since={message.createdAt} />
+      ) : null}
+      {message.attachments?.length ? <GeneratedImages items={message.attachments} /> : null}
 
       {message.citations?.length || searches ? (
         <SourcesBlock citations={message.citations ?? []} searches={searches} />

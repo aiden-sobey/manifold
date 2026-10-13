@@ -164,6 +164,7 @@ export function Sidebar({ open, onToggle, onOpenSettings }: Props) {
                   id={c.id}
                   title={c.title}
                   compare={c.mode === 'compare'}
+                  image={c.kind === 'image'}
                   active={c.id === activeChatId}
                   onOpen={() => open_(c.id)}
                   onDelete={() => void deleteChat(c.id)}

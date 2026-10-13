@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { load, type Store } from '@tauri-apps/plugin-store';
-import type { ThinkingLevel } from '@/types/domain';
+import type { ImageOptions, ThinkingLevel } from '@/types/domain';
 
 export type SendKey = 'enter' | 'mod-enter';
 
@@ -19,7 +19,13 @@ export interface Settings {
   recentModelIds: string[];
   /** Set once the default favourites have been applied, so clearing them sticks. */
   favouritesSeeded: boolean;
+  favouriteImageModelIds: string[];
+  recentImageModelIds: string[];
+  imageOptions: ImageOptions;
 }
+
+/** Image model for image turns when none has been used yet. */
+export const DEFAULT_IMAGE_MODEL_ID = 'black-forest-labs/flux.2-pro';
 
 export const DEFAULT_FAVOURITES = [
   'moonshotai/kimi-k3',
@@ -40,6 +46,14 @@ const DEFAULTS: Settings = {
   favouriteModelIds: DEFAULT_FAVOURITES,
   recentModelIds: [],
   favouritesSeeded: true,
+  favouriteImageModelIds: [
+    DEFAULT_IMAGE_MODEL_ID,
+    'google/gemini-nano-banana-2.1',
+    'openai/gpt-image-2',
+    'bytedance-seed/seedream-5-0-lite',
+  ],
+  recentImageModelIds: [],
+  imageOptions: { aspectRatio: null, resolution: null, quality: null, count: 1 },
 };
 
 interface SettingsState {
@@ -49,7 +63,14 @@ interface SettingsState {
   update: (patch: Partial<Settings>) => Promise<void>;
   toggleFavourite: (modelId: string) => Promise<void>;
   noteRecent: (modelId: string) => Promise<void>;
+  toggleFavouriteImage: (modelId: string) => Promise<void>;
+  noteRecentImage: (modelId: string) => Promise<void>;
 }
+
+const toggled = (list: string[], id: string) =>
+  list.includes(id) ? list.filter((m) => m !== id) : [...list, id];
+const withRecent = (list: string[], id: string) =>
+  [id, ...list.filter((m) => m !== id)].slice(0, 8);
 
 let store: Store | null = null;
 
@@ -84,16 +105,22 @@ export const useSettings = create<SettingsState>((set, get) => ({
   },
 
   toggleFavourite: async (modelId) => {
-    const favs = get().settings.favouriteModelIds;
-    const next = favs.includes(modelId) ? favs.filter((m) => m !== modelId) : [...favs, modelId];
-    await get().update({ favouriteModelIds: next });
+    await get().update({ favouriteModelIds: toggled(get().settings.favouriteModelIds, modelId) });
   },
 
   noteRecent: async (modelId) => {
-    const recent = [modelId, ...get().settings.recentModelIds.filter((m) => m !== modelId)].slice(
-      0,
-      8,
-    );
-    await get().update({ recentModelIds: recent });
+    await get().update({ recentModelIds: withRecent(get().settings.recentModelIds, modelId) });
+  },
+
+  toggleFavouriteImage: async (modelId) => {
+    await get().update({
+      favouriteImageModelIds: toggled(get().settings.favouriteImageModelIds, modelId),
+    });
+  },
+
+  noteRecentImage: async (modelId) => {
+    await get().update({
+      recentImageModelIds: withRecent(get().settings.recentImageModelIds, modelId),
+    });
   },
 }));

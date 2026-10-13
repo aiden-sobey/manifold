@@ -17,6 +17,17 @@ export type FinishReason =
 
 export type ChatMode = 'single' | 'compare';
 
+/** 'image' chats send the composer prompt to an image model instead of a chat model. */
+export type ChatKind = 'chat' | 'image';
+
+/** Last-used image settings. Null means the model's own default. */
+export interface ImageOptions {
+  aspectRatio: string | null;
+  resolution: string | null;
+  quality: string | null;
+  count: number;
+}
+
 export interface Lane {
   modelId: string;
   thinking: ThinkingLevel;
@@ -32,6 +43,10 @@ export interface Chat {
   mode: ChatMode;
   /** Present for compare chats. */
   lanes: Lane[] | null;
+  /** What the composer sends next; the sidebar marks image chats. */
+  kind: ChatKind;
+  /** Image model for image turns. Null until the chat first switches to images. */
+  imageModelId: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -95,6 +110,8 @@ export interface Message {
   attachments?: Attachment[];
   /** Assistant replies that used web search or fetch: the sources they cited. */
   citations?: Citation[];
+  /** Only on the in-memory placeholder while images generate: how many tiles to show. */
+  pendingImages?: number;
 }
 
 export interface SearchResult {

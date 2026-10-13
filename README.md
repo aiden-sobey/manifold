@@ -10,6 +10,7 @@ A lightweight desktop and Android chat client for testing different AI models th
 - Attachments: drop, paste, or attach images, PDFs, and text/code files.
 - Comparison mode: send one prompt to two models side by side, see a detailed comparison.
 - Web access: models that support tools can search the web and read pages when a question needs current information.
+- Image generation: pick any image model to generage images, and edit results.
 - Analytics: all-time and recent spend, stacked spend/tokens by model.
 - API key stored in the macOS keychain (app-private storage on Android)
 

@@ -136,6 +136,16 @@ describe('history and plugins', () => {
     expect(pluginsFor(msgs, textOnly, true)?.[0]?.pdf.engine).toBe('mistral-ocr');
     expect(pluginsFor([msgs[2]!], vision, false)).toBeUndefined();
   });
+  it('stands in a note for replies that were generated images', async () => {
+    const image = att({ kind: 'image', name: 'fox-1.png', mime: 'image/png', textContent: null });
+    const reply: Message = {
+      ...msgs[1]!,
+      content: '',
+      attachments: [image, { ...image, id: 'a2' }],
+    };
+    const h = await buildHistory([msgs[2]!, reply], bytes);
+    expect(h[1]).toEqual({ role: 'assistant', content: '[Generated 2 images]' });
+  });
 });
 
 describe('support', () => {

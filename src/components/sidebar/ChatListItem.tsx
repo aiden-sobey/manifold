@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Columns2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Columns2, Image as ImageIcon, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,6 +14,8 @@ interface Props {
   title: string;
   snippet?: string | null;
   compare?: boolean;
+  /** Chat is set to generate images. */
+  image?: boolean;
   active: boolean;
   onOpen: () => void;
   onDelete: () => void;
@@ -24,6 +26,7 @@ export function ChatListItem({
   title,
   snippet,
   compare,
+  image,
   active,
   onOpen,
   onDelete,
@@ -77,6 +80,12 @@ export function ChatListItem({
         >
           <div className="flex items-center gap-1.5 truncate">
             {compare ? <Columns2 className="text-muted-foreground size-3.5 shrink-0" /> : null}
+            {image ? (
+              <ImageIcon
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-label="Image chat"
+              />
+            ) : null}
             <span className="truncate">{title}</span>
           </div>
           {snippet ? (

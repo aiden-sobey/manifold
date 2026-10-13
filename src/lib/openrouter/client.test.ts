@@ -1,4 +1,9 @@
-import { OpenRouterError, listTranscriptionModels, transcribeAudio } from './client';
+import {
+  OpenRouterError,
+  friendlyHttpError,
+  listTranscriptionModels,
+  transcribeAudio,
+} from './client';
 import type { OpenRouterModel } from './types';
 
 const response = (body: unknown, headers?: HeadersInit) =>
@@ -58,5 +63,43 @@ describe('transcription API', () => {
     await expect(
       transcribeAudio('secret', 'm', new Blob(['audio']), 'webm'),
     ).rejects.toBeInstanceOf(OpenRouterError);
+  });
+});
+
+describe('friendlyHttpError', () => {
+  const body = (error: unknown) => JSON.stringify({ error });
+
+  it("keeps OpenRouter's explanation for rate limits", () => {
+    expect(friendlyHttpError(429)).toBe('Rate limited by OpenRouter. Try again in a moment.');
+    expect(
+      friendlyHttpError(
+        429,
+        body({
+          message: 'Provider returned error',
+          metadata: { provider_name: 'Google AI Studio', raw: 'Resource has been exhausted' },
+        }),
+      ),
+    ).toBe('Rate limited: Provider returned error: Resource has been exhausted (Google AI Studio)');
+  });
+
+  it("doesn't repeat a raw message that is already in the message", () => {
+    expect(
+      friendlyHttpError(
+        429,
+        body({ message: 'Upstream busy: try later', metadata: { raw: 'try later' } }),
+      ),
+    ).toBe('Rate limited: Upstream busy: try later');
+  });
+
+  it('includes the status and detail for other failures', () => {
+    expect(friendlyHttpError(400, body({ message: 'Bad aspect ratio' }))).toBe(
+      'OpenRouter request failed (400): Bad aspect ratio',
+    );
+    expect(friendlyHttpError(502, 'gateway down')).toBe(
+      'OpenRouter request failed (502): gateway down',
+    );
+    expect(friendlyHttpError(401, body({ message: 'No auth' }))).toBe(
+      'OpenRouter rejected the API key. Open Settings and check it.',
+    );
   });
 });

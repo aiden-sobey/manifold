@@ -40,6 +40,12 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/006_citations.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "image chats: chat kind and image model",
+            sql: include_str!("../migrations/007_image_chats.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

@@ -94,7 +94,11 @@ export async function buildHistory(
       out.push({ role: 'user', content: await buildUserContent(m, bytesFor) });
       pendingAnnotations = annotationsFor(m);
     } else {
-      const param: ChatMessageParam = { role: 'assistant', content: m.content };
+      // Generated images can't go back to a chat model; a note keeps the turn from being empty.
+      const images = m.attachments?.length ?? 0;
+      const content =
+        m.content || (images ? `[Generated ${images} image${images === 1 ? '' : 's'}]` : '');
+      const param: ChatMessageParam = { role: 'assistant', content };
       if (pendingAnnotations.length) param.annotations = pendingAnnotations;
       pendingAnnotations = [];
       out.push(param);

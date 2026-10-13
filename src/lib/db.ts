@@ -3,6 +3,7 @@ import type {
   Attachment,
   AttachmentKind,
   Chat,
+  ChatKind,
   ChatMode,
   Citation,
   FinishReason,
@@ -35,6 +36,8 @@ interface ChatRow {
   thinking: ThinkingLevel;
   mode: ChatMode;
   lanes_json: string | null;
+  kind: ChatKind;
+  image_model_id: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -62,6 +65,8 @@ const toChat = (r: ChatRow): Chat => ({
   thinking: r.thinking,
   mode: r.mode ?? 'single',
   lanes: r.lanes_json ? (JSON.parse(r.lanes_json) as Lane[]) : null,
+  kind: r.kind ?? 'chat',
+  imageModelId: r.image_model_id,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -91,8 +96,8 @@ export async function insertChat(chat: Chat): Promise<void> {
   await (
     await db()
   ).execute(
-    `INSERT INTO chats (id, title, title_source, model_id, thinking, mode, lanes_json, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    `INSERT INTO chats (id, title, title_source, model_id, thinking, mode, lanes_json, kind, image_model_id, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       chat.id,
       chat.title,
@@ -101,6 +106,8 @@ export async function insertChat(chat: Chat): Promise<void> {
       chat.thinking,
       chat.mode,
       chat.lanes ? JSON.stringify(chat.lanes) : null,
+      chat.kind,
+      chat.imageModelId,
       chat.createdAt,
       chat.updatedAt,
     ],
@@ -110,7 +117,18 @@ export async function insertChat(chat: Chat): Promise<void> {
 export async function updateChat(
   id: string,
   patch: Partial<
-    Pick<Chat, 'title' | 'titleSource' | 'modelId' | 'thinking' | 'mode' | 'lanes' | 'updatedAt'>
+    Pick<
+      Chat,
+      | 'title'
+      | 'titleSource'
+      | 'modelId'
+      | 'thinking'
+      | 'mode'
+      | 'lanes'
+      | 'kind'
+      | 'imageModelId'
+      | 'updatedAt'
+    >
   >,
 ): Promise<void> {
   const sets: string[] = [];
@@ -126,6 +144,8 @@ export async function updateChat(
   if (patch.mode !== undefined) push('mode', patch.mode);
   if (patch.lanes !== undefined)
     push('lanes_json', patch.lanes ? JSON.stringify(patch.lanes) : null);
+  if (patch.kind !== undefined) push('kind', patch.kind);
+  if (patch.imageModelId !== undefined) push('image_model_id', patch.imageModelId);
   if (patch.updatedAt !== undefined) push('updated_at', patch.updatedAt);
   if (!sets.length) return;
   args.push(id);

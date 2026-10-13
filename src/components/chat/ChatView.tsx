@@ -15,7 +15,9 @@ export function ChatView() {
   const pinned = useRef(true);
 
   const last = messages[messages.length - 1];
-  const lastLen = (last?.content.length ?? 0) + (last?.reasoning?.length ?? 0);
+  // Growth of the last message: text, reasoning, or generated images replacing their placeholders.
+  const lastLen =
+    (last?.content.length ?? 0) + (last?.reasoning?.length ?? 0) + (last?.attachments?.length ?? 0);
   // Id of the most recent user message: changes exactly when the user sends something.
   const lastUserId = [...messages].reverse().find((m) => m.role === 'user')?.id;
 

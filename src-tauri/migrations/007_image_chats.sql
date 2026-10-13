@@ -1,0 +1,2 @@
+ALTER TABLE chats ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat';
+ALTER TABLE chats ADD COLUMN image_model_id TEXT;

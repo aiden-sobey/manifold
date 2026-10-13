@@ -20,6 +20,12 @@ export async function readAttachmentBytes(a: Pick<Attachment, 'relPath'>): Promi
   return readFile(a.relPath, base);
 }
 
+export async function removeAttachmentFiles(atts: Array<Pick<Attachment, 'relPath'>>) {
+  for (const a of atts) {
+    if (await exists(a.relPath, base)) await remove(a.relPath, base);
+  }
+}
+
 export async function removeChatAttachments(chatId: string): Promise<void> {
   const dir = `${ROOT}/${chatId}`;
   if (await exists(dir, base)) await remove(dir, { ...base, recursive: true });

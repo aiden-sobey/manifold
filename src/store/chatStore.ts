@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import * as db from '@/lib/db';
 import { getApiKey } from '@/lib/keychain';
-import { OpenRouterError, streamChat } from '@/lib/openrouter/client';
+import { OpenRouterError, generateImages, streamChat } from '@/lib/openrouter/client';
+import {
+  decodeImages,
+  imageExtension,
+  imageFileName,
+  imageRequestOptions,
+} from '@/lib/openrouter/images';
 import { toReasoningParam } from '@/lib/openrouter/reasoning';
 import type { ChatMessageParam } from '@/lib/openrouter/types';
 import {
@@ -12,10 +18,11 @@ import {
   webSystemPrompt,
 } from '@/lib/openrouter/webTools';
 import { fallbackTitle, generateTitle } from '@/lib/titling';
-import { buildHistory, pluginsFor } from '@/lib/attachments/content';
+import { buildHistory, dataUrl, pluginsFor } from '@/lib/attachments/content';
 import {
   readAttachmentBytes,
   relPathFor,
+  removeAttachmentFiles,
   removeChatAttachments,
   writeAttachmentBytes,
 } from '@/lib/attachments/storage';
@@ -24,6 +31,7 @@ import type { PendingAttachment } from './attachmentDraftStore';
 import type {
   Attachment,
   Chat,
+  ChatKind,
   ChatMode,
   Citation,
   FinishReason,
@@ -32,8 +40,9 @@ import type {
   SearchResult,
   ThinkingLevel,
 } from '@/types/domain';
+import { useImageModels } from './imageModelStore';
 import { useModels } from './modelStore';
-import { useSettings } from './settingsStore';
+import { DEFAULT_IMAGE_MODEL_ID, useSettings } from './settingsStore';
 import { useUi } from './uiStore';
 import { useBalance } from './balanceStore';
 
@@ -52,6 +61,11 @@ export function pickDefaultModel(): string {
       (a, b) => Number(a.pricing?.prompt ?? Infinity) - Number(b.pricing?.prompt ?? Infinity),
     )[0];
   return cheapest?.id ?? favouriteModelIds[0] ?? defaultModelId;
+}
+
+/** Image model for a chat that has none yet: the last one used, else the default. */
+export function pickDefaultImageModel(): string {
+  return useSettings.getState().settings.recentImageModelIds[0] ?? DEFAULT_IMAGE_MODEL_ID;
 }
 
 /** Second lane default: most recent model that differs from lane 0, else another favourite, else lane 0. */
@@ -74,6 +88,9 @@ interface ChatState {
   draftMode: ChatMode;
   /** Both lanes when draftMode is 'compare'. Lane 0 mirrors draftModelId/draftThinking. */
   draftLanes: Lane[];
+  /** 'image' sends the next prompt to draftImageModelId instead of the chat model. */
+  draftKind: ChatKind;
+  draftImageModelId: string;
   /** In-flight replies keyed by lane (0 for single mode). */
   streams: Map<number, AbortController>;
   streaming: boolean;
@@ -89,6 +106,8 @@ interface ChatState {
   setDraftModel: (modelId: string) => Promise<void>;
   setDraftThinking: (level: ThinkingLevel) => Promise<void>;
   setLane: (lane: number, patch: Partial<Lane>) => Promise<void>;
+  setDraftKind: (kind: ChatKind) => Promise<void>;
+  setDraftImageModel: (modelId: string) => Promise<void>;
   enterCompareMode: () => void;
   exitCompareMode: () => void;
   continueWithLane: (lane: number) => Promise<void>;
@@ -116,6 +135,8 @@ export const useChat = create<ChatState>((set, get) => ({
   draftThinking: 'medium',
   draftMode: 'single',
   draftLanes: [],
+  draftKind: 'chat',
+  draftImageModelId: '',
   streams: new Map(),
   streaming: false,
   searchQuery: '',
@@ -125,7 +146,13 @@ export const useChat = create<ChatState>((set, get) => ({
   init: async () => {
     const chats = await db.listChats();
     const { defaultThinking } = useSettings.getState().settings;
-    set({ chats, loaded: true, draftModelId: pickDefaultModel(), draftThinking: defaultThinking });
+    set({
+      chats,
+      loaded: true,
+      draftModelId: pickDefaultModel(),
+      draftThinking: defaultThinking,
+      draftImageModelId: pickDefaultImageModel(),
+    });
   },
 
   newChat: () => {
@@ -140,6 +167,8 @@ export const useChat = create<ChatState>((set, get) => ({
       draftThinking: defaultThinking,
       draftMode: 'single',
       draftLanes: [],
+      draftKind: 'chat',
+      draftImageModelId: pickDefaultImageModel(),
     });
   },
 
@@ -156,6 +185,8 @@ export const useChat = create<ChatState>((set, get) => ({
       draftThinking: lanes[0]?.thinking ?? chat?.thinking ?? 'default',
       draftMode: chat?.mode ?? 'single',
       draftLanes: lanes,
+      draftKind: chat?.kind ?? 'chat',
+      draftImageModelId: chat?.imageModelId ?? pickDefaultImageModel(),
     });
   },
 
@@ -214,10 +245,35 @@ export const useChat = create<ChatState>((set, get) => ({
     }
   },
 
+  setDraftKind: async (kind) => {
+    if (get().draftMode === 'compare') return;
+    set({ draftKind: kind });
+    const id = get().activeChatId;
+    if (id) {
+      // Remember the image model on the chat the first time it switches to images.
+      const patch: Partial<Chat> =
+        kind === 'image' ? { kind, imageModelId: get().draftImageModelId } : { kind };
+      await db.updateChat(id, patch);
+      set((s) => ({ chats: s.chats.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+    }
+  },
+
+  setDraftImageModel: async (modelId) => {
+    set({ draftImageModelId: modelId });
+    const id = get().activeChatId;
+    if (id) {
+      await db.updateChat(id, { imageModelId: modelId });
+      set((s) => ({
+        chats: s.chats.map((c) => (c.id === id ? { ...c, imageModelId: modelId } : c)),
+      }));
+    }
+  },
+
   enterCompareMode: () => {
     if (get().activeChatId !== null || get().messages.length > 0) return;
     const { draftModelId, draftThinking } = get();
     set({
+      draftKind: 'chat',
       draftMode: 'compare',
       draftLanes: [
         { modelId: draftModelId, thinking: draftThinking },
@@ -268,6 +324,10 @@ export const useChat = create<ChatState>((set, get) => ({
     const lanes = lanesFromDraft(get);
     const mode: ChatMode = lanes.length > 1 ? 'compare' : 'single';
     const first = lanes[0]!;
+    const { draftKind, draftImageModelId } = get();
+    const image = mode === 'single' && draftKind === 'image';
+    // Image models generate from a prompt; references alone aren't enough.
+    if (image && !content) return;
 
     if (!chatId) {
       const chat: Chat = {
@@ -278,6 +338,8 @@ export const useChat = create<ChatState>((set, get) => ({
         thinking: first.thinking,
         mode,
         lanes: mode === 'compare' ? lanes : null,
+        kind: image ? 'image' : 'chat',
+        imageModelId: image ? draftImageModelId : null,
         createdAt: now,
         updatedAt: now,
       };
@@ -339,6 +401,8 @@ export const useChat = create<ChatState>((set, get) => ({
       await Promise.all(
         lanes.map((lane, i) => streamReply(chatId, i, lane.modelId, lane.thinking, set, get)),
       );
+    } else if (image) {
+      await generateImageReply(chatId, draftImageModelId, set, get);
     } else {
       await streamReply(chatId, null, first.modelId, first.thinking, set, get);
     }
@@ -357,10 +421,18 @@ export const useChat = create<ChatState>((set, get) => ({
     if (!target) return;
     const last = lastReplyForLane(messages, laneKey);
     if (last) {
-      if (!last.streaming) await db.deleteMessage(last.id);
+      if (!last.streaming) {
+        await db.deleteMessage(last.id);
+        removeAttachmentFiles(last.attachments ?? []).catch(() => undefined);
+      }
       set({ messages: messages.filter((m) => m.id !== last.id) });
     }
-    await streamReply(activeChatId, laneKey, target.modelId, target.thinking, set, get);
+    // Regenerate follows the composer: an image chat makes new images for the same prompt.
+    if (laneKey === null && get().draftKind === 'image') {
+      await generateImageReply(activeChatId, get().draftImageModelId, set, get);
+    } else {
+      await streamReply(activeChatId, laneKey, target.modelId, target.thinking, set, get);
+    }
   },
 
   setSearch: async (q) => {
@@ -596,6 +668,161 @@ async function streamReply(
   // Titles come from lane 0 (or the only lane).
   if (finishReason !== 'error' && content && (lane === null || lane === 0)) {
     void maybeAutoTitle(chatId, content, apiKey, set, get);
+  }
+}
+
+/**
+ * Generates images for the latest prompt with an image model. The images are stored as the
+ * reply's attachments, so they display, persist and delete like any other attachment.
+ */
+async function generateImageReply(chatId: string, modelId: string, set: Set, get: Get) {
+  const apiKey = await getApiKey();
+  const model = useImageModels.getState().byId.get(modelId);
+  const options = imageRequestOptions(model, useSettings.getState().settings.imageOptions);
+  const controller = new AbortController();
+  const startedAt = performance.now();
+
+  const placeholder: Message = {
+    id: uuid(),
+    chatId,
+    role: 'assistant',
+    content: '',
+    reasoning: null,
+    modelId,
+    finishReason: null,
+    usage: null,
+    lane: null,
+    firstTokenMs: null,
+    totalMs: null,
+    createdAt: Date.now(),
+    streaming: true,
+    pendingImages: options.n ?? 1,
+  };
+  set((s) => ({ messages: [...s.messages, placeholder] }));
+  trackStream(set, get, null, controller);
+
+  const fail = (finishReason: FinishReason, error?: string) => {
+    set((s) => ({
+      messages: patchMessage(s.messages, placeholder.id, {
+        streaming: false,
+        pendingImages: undefined,
+        finishReason,
+        error,
+        totalMs: Math.round(performance.now() - startedAt),
+      }),
+    }));
+    trackStream(set, get, null, null);
+  };
+
+  if (!apiKey) {
+    fail('error', 'No API key set. Open Settings to add your OpenRouter key.');
+    return;
+  }
+  const prompt = [...get().messages].reverse().find((m) => m.role === 'user');
+  if (!prompt?.content.trim()) {
+    fail('error', 'Image models need a text prompt.');
+    return;
+  }
+
+  let attachments: Attachment[];
+  let usage: Record<string, unknown> | null;
+  try {
+    const references = await Promise.all(
+      (prompt.attachments ?? [])
+        .filter((a) => a.kind === 'image')
+        .map(async (a) => ({
+          type: 'image_url' as const,
+          image_url: { url: dataUrl(a.mime, await readAttachmentBytes(a)) },
+        })),
+    );
+    const res = await generateImages(
+      apiKey,
+      {
+        model: modelId,
+        prompt: prompt.content,
+        ...options,
+        ...(references.length ? { input_references: references } : {}),
+      },
+      controller.signal,
+    );
+    const images = decodeImages(res);
+    if (images.length === 0) throw new OpenRouterError('The model returned no images.');
+    usage = res.usage ?? null;
+    attachments = await Promise.all(
+      images.map(async (img, i) => {
+        const id = uuid();
+        const ext = imageExtension(img.mime);
+        const relPath = relPathFor(chatId, id, ext);
+        await writeAttachmentBytes(relPath, img.bytes);
+        const size = await imageSize(img.bytes, img.mime);
+        return {
+          id,
+          messageId: placeholder.id,
+          chatId,
+          kind: 'image' as const,
+          name: imageFileName(prompt.content, i, ext),
+          mime: img.mime,
+          size: img.bytes.byteLength,
+          relPath,
+          width: size?.width ?? null,
+          height: size?.height ?? null,
+          textContent: null,
+          annotation: null,
+          createdAt: placeholder.createdAt,
+        };
+      }),
+    );
+  } catch (e) {
+    if (controller.signal.aborted) fail('aborted');
+    else fail('error', e instanceof Error ? e.message : String(e));
+    return;
+  }
+
+  const final: Message = {
+    ...placeholder,
+    usage,
+    finishReason: 'stop',
+    totalMs: Math.round(performance.now() - startedAt),
+    streaming: false,
+    pendingImages: undefined,
+    attachments,
+  };
+  await db.insertMessage(final);
+  for (const a of attachments) await db.insertAttachment(a);
+  if (usage) {
+    void db.insertUsage({
+      id: final.id,
+      source: 'chat',
+      modelId,
+      chatId,
+      usage,
+      createdAt: final.createdAt,
+    });
+  }
+
+  set((s) => ({ messages: patchMessage(s.messages, placeholder.id, final) }));
+  trackStream(set, get, null, null);
+
+  const updatedAt = Date.now();
+  await db.updateChat(chatId, { updatedAt });
+  set((s) => ({
+    chats: [...s.chats]
+      .map((c) => (c.id === chatId ? { ...c, updatedAt } : c))
+      .sort((a, b) => b.updatedAt - a.updatedAt),
+  }));
+
+  void useSettings.getState().noteRecentImage(modelId);
+  void maybeAutoTitle(chatId, null, apiKey, set, get);
+}
+
+async function imageSize(bytes: Uint8Array, mime: string) {
+  try {
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: mime }));
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size;
+  } catch {
+    return null;
   }
 }
 

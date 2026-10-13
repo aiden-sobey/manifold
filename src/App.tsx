@@ -15,6 +15,7 @@ import { useUi } from '@/store/uiStore';
 import { BALANCE_POLL_MS, useBalance } from '@/store/balanceStore';
 import { pickDefaultModel, useChat } from '@/store/chatStore';
 import { useModels } from '@/store/modelStore';
+import { useImageModels } from '@/store/imageModelStore';
 import { useSettings } from '@/store/settingsStore';
 import { getApiKey } from '@/lib/keychain';
 import { getAndroidBackAction } from '@/lib/androidBack';
@@ -41,6 +42,7 @@ export default function App() {
       try {
         await useSettings.getState().init();
         await Promise.all([useChat.getState().init(), useModels.getState().init()]);
+        void useImageModels.getState().init();
         // Models may have arrived after the chat store picked its default; re-pick for a fresh chat.
         if (!useChat.getState().activeChatId) {
           useChat.setState({ draftModelId: pickDefaultModel() });

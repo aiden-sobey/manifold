@@ -16,6 +16,7 @@ import {
 } from '@/lib/analytics';
 import { useWindowDrag } from '@/lib/useWindowDrag';
 import { useModels } from '@/store/modelStore';
+import { useImageModels } from '@/store/imageModelStore';
 import { useUi } from '@/store/uiStore';
 import { ModelTable } from './ModelTable';
 import { SpendChart } from './SpendChart';
@@ -25,6 +26,7 @@ import { useAnalyticsData } from './useAnalyticsData';
 export function AnalyticsView() {
   const showChat = useUi((s) => s.showChat);
   const byId = useModels((s) => s.byId);
+  const imageModels = useImageModels((s) => s.byId);
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [range, setRange] = useState<RangePreset>(DEFAULT_RANGE.day);
   const [metric, setMetric] = useState<Metric>('spend');
@@ -37,7 +39,7 @@ export function AnalyticsView() {
 
   const nameOf = (id: string) => {
     if (id === SYSTEM_KEY) return 'System';
-    const m = byId.get(id);
+    const m = byId.get(id) ?? imageModels.get(id);
     return m ? shortName(m.name) : id;
   };
 

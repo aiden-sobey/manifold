@@ -130,3 +130,45 @@ export type StreamEvent =
   | { type: 'annotations'; annotations: Annotation[] }
   | { type: 'error'; code?: string | number; message: string }
   | { type: 'done'; finishReason: string | null };
+
+export type ImageParamSpec =
+  | { type: 'enum'; values: string[] }
+  | { type: 'range'; min: number; max: number }
+  | { type: 'boolean' };
+
+/** An entry in OpenRouter's image catalog (/images/models). */
+export interface ImageModel {
+  id: string;
+  name: string;
+  description?: string;
+  created?: number;
+  architecture?: { input_modalities?: string[]; output_modalities?: string[] };
+  supported_parameters?: Partial<Record<string, ImageParamSpec>>;
+  supports_streaming?: boolean;
+}
+
+export interface ImagePriceLine {
+  /** 'output_image' | 'input_image' | 'input_text' | … */
+  billable: string;
+  /** 'image' | 'megapixel' | 'token' */
+  unit: string;
+  cost_usd: number;
+  /** The resolution and/or quality this price applies to, e.g. '2k' or 'medium_1k'. */
+  variant?: string;
+}
+
+export interface ImageRequest {
+  model: string;
+  prompt: string;
+  n?: number;
+  aspect_ratio?: string;
+  resolution?: string;
+  quality?: string;
+  /** Images to edit or take style from, as data URLs. */
+  input_references?: Array<{ type: 'image_url'; image_url: { url: string } }>;
+}
+
+export interface ImageResponse {
+  data?: Array<{ b64_json?: string; media_type?: string }>;
+  usage?: Record<string, unknown>;
+}
