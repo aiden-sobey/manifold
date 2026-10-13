@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS usage_ledger (
   id          TEXT PRIMARY KEY,       -- message id for chat replies, own id for system calls
   source      TEXT NOT NULL,          -- 'chat' | 'system'
-  purpose     TEXT,                   -- system: 'title' | 'greeting' | 'transcription'
+  purpose     TEXT,                   -- system: 'title' | 'greeting'
   model_id    TEXT,
   chat_id     TEXT,                   -- informational only; no FK so deletion does not cascade
   usage_json  TEXT NOT NULL,
