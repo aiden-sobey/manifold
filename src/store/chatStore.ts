@@ -4,6 +4,13 @@ import { getApiKey } from '@/lib/keychain';
 import { OpenRouterError, streamChat } from '@/lib/openrouter/client';
 import { toReasoningParam } from '@/lib/openrouter/reasoning';
 import type { ChatMessageParam } from '@/lib/openrouter/types';
+import {
+  MAX_WEB_TOOL_CALLS,
+  WEB_TOOLS,
+  mergeCitations,
+  supportsTools,
+  webSystemPrompt,
+} from '@/lib/openrouter/webTools';
 import { fallbackTitle, generateTitle } from '@/lib/titling';
 import { buildHistory, pluginsFor } from '@/lib/attachments/content';
 import {
@@ -18,6 +25,7 @@ import type {
   Attachment,
   Chat,
   ChatMode,
+  Citation,
   FinishReason,
   Lane,
   Message,
@@ -440,11 +448,18 @@ async function streamReply(
     fail(`Could not read an attachment: ${e instanceof Error ? e.message : String(e)}`);
     return;
   }
-  const plugins = pluginsFor(sendable, model, useSettings.getState().settings.pdfOcr);
+  const { pdfOcr, webAccess } = useSettings.getState().settings;
+  const plugins = pluginsFor(sendable, model, pdfOcr);
   const lastUser = [...sendable].reverse().find((m) => m.role === 'user');
+  const web = webAccess && supportsTools(model);
+  if (web) {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    history = [{ role: 'system', content: webSystemPrompt(new Date(), timeZone) }, ...history];
+  }
 
   let content = '';
   let reasoning = '';
+  let citations: Citation[] = [];
   let usage: Record<string, unknown> | null = null;
   let finishReason: FinishReason = 'stop';
   let error: string | undefined;
@@ -458,6 +473,7 @@ async function streamReply(
       messages: patchMessage(s.messages, placeholder.id, {
         content,
         reasoning: reasoning || null,
+        citations: citations.length ? citations : undefined,
         firstTokenMs,
       }),
     }));
@@ -477,6 +493,7 @@ async function streamReply(
         messages: history,
         reasoning: toReasoningParam(thinking, model),
         plugins,
+        ...(web ? { tools: WEB_TOOLS, max_tool_calls: MAX_WEB_TOOL_CALLS } : {}),
       },
       controller.signal,
     );
@@ -496,6 +513,11 @@ async function streamReply(
           usage = ev.usage;
           break;
         case 'annotations': {
+          const merged = mergeCitations(citations, ev.annotations);
+          if (merged.length !== citations.length) {
+            citations = merged;
+            schedule();
+          }
           // Attach parsed-PDF annotations to the PDFs on the last user turn so later turns skip re-parsing.
           const pdfs = (lastUser?.attachments ?? []).filter(
             (a) => a.kind === 'pdf' && !a.annotation,
@@ -535,6 +557,7 @@ async function streamReply(
     ...placeholder,
     content,
     reasoning: reasoning || null,
+    citations: citations.length ? citations : undefined,
     usage,
     finishReason,
     firstTokenMs,

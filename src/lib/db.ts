@@ -4,6 +4,7 @@ import type {
   AttachmentKind,
   Chat,
   ChatMode,
+  Citation,
   FinishReason,
   Lane,
   Message,
@@ -49,6 +50,7 @@ interface MessageRow {
   lane: number | null;
   first_token_ms: number | null;
   total_ms: number | null;
+  citations_json: string | null;
   created_at: number;
 }
 
@@ -77,6 +79,7 @@ const toMessage = (r: MessageRow): Message => ({
   firstTokenMs: r.first_token_ms,
   totalMs: r.total_ms,
   createdAt: r.created_at,
+  citations: r.citations_json ? (JSON.parse(r.citations_json) as Citation[]) : undefined,
 });
 
 export async function listChats(): Promise<Chat[]> {
@@ -238,8 +241,8 @@ export async function insertMessage(m: Message): Promise<void> {
   await (
     await db()
   ).execute(
-    `INSERT INTO messages (id, chat_id, role, content, reasoning, model_id, finish_reason, usage_json, lane, first_token_ms, total_ms, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    `INSERT INTO messages (id, chat_id, role, content, reasoning, model_id, finish_reason, usage_json, lane, first_token_ms, total_ms, citations_json, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
     [
       m.id,
       m.chatId,
@@ -252,6 +255,7 @@ export async function insertMessage(m: Message): Promise<void> {
       m.lane,
       m.firstTokenMs,
       m.totalMs,
+      m.citations?.length ? JSON.stringify(m.citations) : null,
       m.createdAt,
     ],
   );

@@ -9,6 +9,16 @@ export interface FileAnnotation {
   [k: string]: unknown;
 }
 
+/** A web source the reply drew on. Some providers flatten the fields onto the annotation itself. */
+export interface UrlCitationAnnotation {
+  type: 'url_citation';
+  url_citation?: { url?: string; title?: string; content?: string };
+  url?: string;
+  title?: string;
+}
+
+export type Annotation = FileAnnotation | UrlCitationAnnotation;
+
 export interface ChatMessageParam {
   role: 'system' | 'user' | 'assistant';
   content: string | ContentPart[];
@@ -30,6 +40,22 @@ export interface ReasoningParam {
   enabled?: boolean;
 }
 
+/** Tools OpenRouter runs on its own servers; the model decides when to call them. */
+export type ServerTool =
+  | {
+      type: 'openrouter:web_search';
+      parameters?: {
+        engine?: 'auto' | 'native' | 'exa' | 'parallel' | 'perplexity' | 'firecrawl';
+        mode?: string;
+        max_results?: number;
+        max_uses?: number;
+      };
+    }
+  | {
+      type: 'openrouter:web_fetch';
+      parameters?: { max_uses?: number; max_content_tokens?: number };
+    };
+
 export interface ChatCompletionRequest {
   model: string;
   messages: ChatMessageParam[];
@@ -38,6 +64,9 @@ export interface ChatCompletionRequest {
   temperature?: number;
   reasoning?: ReasoningParam;
   plugins?: FileParserPlugin[];
+  tools?: ServerTool[];
+  /** Cap on server-tool steps across all tools in one request. OpenRouter's default is 30. */
+  max_tool_calls?: number;
 }
 
 export interface ReasoningDetail {
@@ -57,9 +86,9 @@ export interface StreamChunk {
       content?: string | null;
       reasoning?: string | null;
       reasoning_details?: ReasoningDetail[];
-      annotations?: FileAnnotation[];
+      annotations?: Annotation[];
     };
-    message?: { annotations?: FileAnnotation[] };
+    message?: { annotations?: Annotation[] };
     finish_reason?: string | null;
   }>;
   usage?: Record<string, unknown>;
@@ -98,6 +127,6 @@ export type StreamEvent =
   | { type: 'content'; text: string }
   | { type: 'reasoning'; text: string }
   | { type: 'usage'; usage: Record<string, unknown> }
-  | { type: 'annotations'; annotations: FileAnnotation[] }
+  | { type: 'annotations'; annotations: Annotation[] }
   | { type: 'error'; code?: string | number; message: string }
   | { type: 'done'; finishReason: string | null };

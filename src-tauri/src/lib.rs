@@ -34,6 +34,12 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/005_compare_mode.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "web sources cited by assistant replies",
+            sql: include_str!("../migrations/006_citations.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

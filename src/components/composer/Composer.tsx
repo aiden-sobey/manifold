@@ -7,6 +7,7 @@ import { supportIssues } from '@/lib/attachments/support';
 import { getApiKey } from '@/lib/keychain';
 import { insertSystemUsage } from '@/lib/db';
 import { transcribeAudio } from '@/lib/openrouter/client';
+import { supportsTools } from '@/lib/openrouter/webTools';
 import { appendTranscript, audioFormat } from '@/lib/transcription';
 import { shortName } from '@/lib/modelName';
 import { isAndroid, isMobile } from '@/lib/platform';
@@ -17,6 +18,7 @@ import { useChat } from '@/store/chatStore';
 import { useSettings } from '@/store/settingsStore';
 import { ModelPicker } from './ModelPicker';
 import { ThinkingLevel } from './ThinkingLevel';
+import { WebToggle } from './WebToggle';
 
 export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [text, setText] = useState('');
@@ -65,6 +67,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
     );
   });
   const blocked = issues.some((i) => i.level === 'block');
+  const webCapable = laneModelIds.some((id) => supportsTools(byId.get(id)));
 
   useEffect(() => {
     if (rejected.length === 0) return;
@@ -329,6 +332,7 @@ export function Composer({ onOpenSettings }: { onOpenSettings: () => void }) {
               <ThinkingLevel />
             </>
           )}
+          {webCapable ? <WebToggle /> : null}
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {recording ? (
               <span role="status" aria-label="Recording" className="inline-flex items-center">

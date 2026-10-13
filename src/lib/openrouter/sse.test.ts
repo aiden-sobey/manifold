@@ -55,6 +55,28 @@ describe('chunkToEvents', () => {
     ]);
   });
 
+  it('yields url citations from web search, and ignores server tool call deltas', () => {
+    const citation = {
+      type: 'url_citation',
+      url_citation: { url: 'https://example.com', title: 'Example' },
+    };
+    const payload = JSON.stringify({
+      choices: [
+        {
+          delta: {
+            content: 'See',
+            annotations: [citation],
+            tool_calls: [{ index: 0, type: 'function', function: { name: 'web_search' } }],
+          },
+        },
+      ],
+    });
+    expect(chunkToEvents(payload)).toEqual([
+      { type: 'content', text: 'See' },
+      { type: 'annotations', annotations: [citation] },
+    ]);
+  });
+
   it('ignores garbage', () => {
     expect(chunkToEvents('not json')).toEqual([]);
     expect(chunkToEvents('[DONE]')).toEqual([]);

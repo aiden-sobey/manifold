@@ -41,7 +41,15 @@ export interface Usage {
   completion_tokens?: number;
   total_tokens?: number;
   cost?: number;
+  /** Counts of OpenRouter server-tool calls made while producing the reply. */
+  server_tool_use_details?: { web_search_requests?: number; [k: string]: unknown };
   [k: string]: unknown;
+}
+
+/** A web page the reply cited, from OpenRouter's url_citation annotations. */
+export interface Citation {
+  url: string;
+  title: string | null;
 }
 
 export type AttachmentKind = 'image' | 'pdf' | 'text';
@@ -85,6 +93,8 @@ export interface Message {
   /** Set when the request failed; shown under the bubble. */
   error?: string;
   attachments?: Attachment[];
+  /** Assistant replies that used web search or fetch: the sources they cited. */
+  citations?: Citation[];
 }
 
 export interface SearchResult {

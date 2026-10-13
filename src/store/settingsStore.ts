@@ -12,6 +12,8 @@ export interface Settings {
   autoTitle: boolean;
   /** Use Mistral OCR ($2 / 1000 pages) for PDFs instead of free text extraction / native reading. */
   pdfOcr: boolean;
+  /** Offer replies OpenRouter's web search and web fetch tools, on models that support tools. */
+  webAccess: boolean;
   sendKey: SendKey;
   favouriteModelIds: string[];
   recentModelIds: string[];
@@ -33,6 +35,7 @@ const DEFAULTS: Settings = {
   titleModelId: 'openai/gpt-oss-120b',
   autoTitle: true,
   pdfOcr: false,
+  webAccess: true,
   sendKey: 'enter',
   favouriteModelIds: DEFAULT_FAVOURITES,
   recentModelIds: [],

@@ -6,6 +6,7 @@ import { useModels } from '@/store/modelStore';
 import type { Message } from '@/types/domain';
 import { Markdown } from './Markdown';
 import { ReasoningBlock } from './ReasoningBlock';
+import { SourcesBlock } from './SourcesBlock';
 import { MessageAttachments } from './MessageAttachments';
 import { useCopy } from '@/lib/useCopy';
 import { cn } from '@/lib/utils';
@@ -53,6 +54,7 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
   const { copied, copy } = useCopy();
 
   const showCursor = message.streaming && !message.content && !message.reasoning;
+  const searches = message.usage?.server_tool_use_details?.web_search_requests ?? 0;
 
   return (
     <div className="group flex flex-col gap-2">
@@ -67,6 +69,10 @@ function AssistantBubble({ message, isLast, compare = false }: Props) {
         <Markdown content={message.content} />
       ) : showCursor ? (
         <span className="bg-foreground/70 animate-blink inline-block h-4 w-2 rounded-sm" />
+      ) : null}
+
+      {message.citations?.length || searches ? (
+        <SourcesBlock citations={message.citations ?? []} searches={searches} />
       ) : null}
 
       {message.error ? (
